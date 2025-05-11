@@ -1,0 +1,14 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: user_mongodb
+    volumes:
+      - mongo:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=dev
+      - MONGO_INITDB_ROOT_PASSWORD=dev_pass
+    ports:
+      - "57017:27017"
+
+volumes:
+  mongo:

@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "name": "create-user",
+    "description": "Permission to create a new user"
+  },
+  {
+    "id": 2,
+    "name": "update-user",
+    "description": "Permission to update a user"
+  },
+  {
+    "id": 3,
+    "name": "delete-user",
+    "description": "Permission to delete a user"
+  }
+]

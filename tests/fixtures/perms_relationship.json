@@ -1,0 +1,27 @@
+[
+  {
+    "role": "SuperAdmin",
+    "perms": [
+      1,2,3,4
+    ]
+  },
+  {
+    "role": "Admin",
+    "perms": [
+      2,
+      3, 4
+    ]
+  },
+  {
+    "role": "Visitor",
+    "perms": [
+      2
+    ]
+  },
+  {
+    "role": "Client",
+    "perms": [
+      2
+    ]
+  }
+]
