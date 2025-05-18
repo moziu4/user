@@ -1,3 +1,4 @@
+use bcrypt::verify;
 use crate::{
     core::domain::auth::{auth_type::AuthLogin},
 };
@@ -30,10 +31,15 @@ impl<'a> AuthOps<'a>
     
     pub async fn do_login (&self, auth_login: AuthLogin ) -> Result<Token, AuthError>
     {
-        let auth = self.repo.fetch_by_username(auth_login.username).await?;
-        if auth.password != auth_login.password {
-           return  Err(AuthError::IncorrectPassword)
-        };
+        let auth = self.repo.fetch_by_username(auth_login.clone().username).await?;
+
+        let is_password_valid = verify(auth_login.password, &auth.password)
+            .map_err(|_| AuthError::IncorrectPassword)?;
+
+        if !is_password_valid {
+            return Err(AuthError::IncorrectPassword);
+        }
+
         Token::new(auth)
     }
 }

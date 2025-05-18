@@ -47,7 +47,7 @@ impl Token
             Ok(Token{token})
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, Hash, Eq)]
 pub enum Role
 {
     SuperAdmin,

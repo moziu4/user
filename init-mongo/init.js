@@ -1,10 +1,13 @@
-db = db.getSiblingDB("mydb");
+// mongosh --authenticationDatabase admin -u "dev" -p "dev_pass"
+db = db.getSiblingDB("user");
 db.createUser({
     user: "dev",
     pwd: "dev_pass",
     roles: [
-        { role: "readWrite", db: "mydb" }
+        { role: "readWrite", db: "user" }
     ]
 });
 
-db.createCollection("data");
+db.createCollection("users");
+db.createCollection("relationship");
+db.createCollection("auth");

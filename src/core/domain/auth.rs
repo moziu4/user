@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use mongodb::bson::oid::ObjectId;
+use crate::core::domain::auth::auth_error::AuthError;
 use crate::core::domain::auth::auth_type::Role;
 use crate::data::access::auth_repo::MongoAuthRepo;
 use crate::utils::domains_ids::{AuthID, UserID};
@@ -44,8 +44,28 @@ impl<'a>AuthEntity<'a>
         }}
     }
     
-    pub async fn create(self) -> Result<Auth, auth_error::AuthError>
+    pub async fn update_id(& mut self, id: AuthID )
+    {
+        self.props._id = Some(id);
+    }
+    
+    pub async fn create(self) -> Result<Auth, AuthError>
     {
         self.repo.create(self.props).await
+    }
+    
+    pub async fn update_role(&mut self, role: Role)
+    {
+        self.props.roles = role;
+    }
+        
+    pub async fn update_permissions(&mut self, permissions: Vec<u32>)
+    {
+        self.props.permissions = permissions;
+    }
+    pub async fn save(self) -> Result<Auth, auth_error::AuthError>
+    {
+        println!("{:?}", self.props);
+        self.repo.save(self.props).await
     }
 }

@@ -46,6 +46,9 @@ pub enum UserError {
     PermError,
     
     #[error("Auth error")]
-    AuthError
+    AuthError,
+    
+    #[error("Not has permission")]
+    NotHasPermission
 
 }

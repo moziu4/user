@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use actix_web::HttpRequest;
 use bcrypt::{hash, DEFAULT_COST};
 use crate::{
@@ -13,6 +12,7 @@ use crate::{
 use crate::context::Context;
 use crate::core::domain::auth::auth_type::Claims;
 use crate::core::domain::auth::{Auth, AuthEntity};
+use crate::core::domain::perm::perm_cat::READ_USER;
 use crate::core::domain::user::{User, UserEntity};
 use crate::core::domain::user::user_error::UserError;
 use crate::data::access::auth_repo::MongoAuthRepo;
@@ -59,14 +59,14 @@ impl<'a> UserOps<'a>
             None => return Err(UserError::InvalidUserId)
         };
         
-        let password = hash(new_user.password, DEFAULT_COST).map_err(|err| UserError::HashPasswordError)?;
+        let password = hash(new_user.password, 10).map_err(|err| UserError::HashPasswordError)?;
         let role;
         if public
         {
-            role = Role::SuperAdmin;
+            role = Role::Client;
         }
         else{
-            role = Role::Client;
+            role = Role::SuperAdmin;
         }
         
         
@@ -94,31 +94,14 @@ impl<'a> UserOps<'a>
 
         Ok(user)
     }
-
-    // pub async fn intern_new_user(&self, user: NewUser) -> Result<User, UserError>
-    // {
-    //     let new_user = self.user_repo.insert_user(user.clone()).await?;
-    //     let role = Role::SuperAdmin.to_string();
-    //     let command = "private".to_string();
-    //     let perm = self.perms_repo
-    //                     .charge_permissions(role)
-    //                     .await
-    //                     .map_err(|perms_err| UserError { message: perms_err.message })?;
-    //     self.auth_repo
-    //         .insert_auth(command, user, new_user.id, perm)
-    //         .await
-    //         .map_err(|auth_err| UserError { message: auth_err.message })?;
-    // 
-    // 
-    //     Ok(new_user)
-    // }
+    
 
     pub async fn load_users(&self, req: HttpRequest) -> Result<Vec<User>, UserError>
     {
-        // if !self.has_permission(req, READ_USER).await
-        // {
-        //     return Err(UserError { message: "Permission denied".to_string() });
-        // }
+        if !self.has_permission(req, READ_USER).await
+        {
+            return Err(UserError::NotHasPermission);
+        }
 
         let users = self.repo.fetch_all().await?;
         Ok(users)

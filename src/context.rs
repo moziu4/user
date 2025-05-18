@@ -8,7 +8,7 @@ use crate::data::access::{
     perms_repo::MongoPermRepo,
     user_repo::MongoUserRepo,
 };
-
+use crate::data::catalog_importer::MongoCatalogRepo;
 
 #[derive(Clone)]
 pub struct Context
@@ -18,7 +18,7 @@ pub struct Context
     pub user_repo:  Arc<MongoUserRepo>,
     pub auth_repo:  Arc<MongoAuthRepo>,
     pub perm_repo: Arc<MongoPermRepo>,
-
+    
 }
 
 
@@ -36,7 +36,8 @@ impl Context
         Self { client:     arc_client.clone(),
                   user_repo:  Arc::new(MongoUserRepo::new(user_collection)),
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
-                  perm_repo: Arc::new(MongoPermRepo::new(perm_collection)), }
+                  perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
+        }
     }
 
     pub fn get_user_repo(&self) -> Arc<MongoUserRepo>

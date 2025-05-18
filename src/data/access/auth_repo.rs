@@ -1,22 +1,12 @@
-use std::{
-    env
-    ,
-    time::{SystemTime, UNIX_EPOCH},
-};
 
 use async_trait::async_trait;
-use bcrypt::{hash, verify, DEFAULT_COST};
 use futures_util::TryStreamExt;
-use jsonwebtoken::{encode, EncodingKey, Header};
-use mongodb::{bson, bson::{doc, from_bson, oid::ObjectId, Document}, Collection};
+use mongodb::{ bson::{doc, oid::ObjectId, Document}, Collection};
 use mongodb::bson::{from_document, to_document};
-use serde::{Deserialize, Serialize};
 use crate::core::domain::{
     auth::{
         auth_repo::AuthRepo,
-        auth_type::{AuthLogin, Role},
     },
-    user::user_type::NewUser,
 };
 use crate::core::domain::auth::Auth;
 use crate::core::domain::auth::auth_error::AuthError;

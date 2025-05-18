@@ -1,12 +1,10 @@
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures_util::TryStreamExt;
-use mongodb::{bson, bson::{doc, from_bson, Document}, Client, Collection};
+use mongodb::{bson::{doc, from_bson, Document}, Collection};
 use mongodb::bson::{from_document, to_document};
 use mongodb::bson::oid::ObjectId;
 use tracing::log;
-use warp::reject;
 use crate::context::Context;
 use crate::core::domain::perm::{perm_repo::PermRepo, perm_type::{PermsRelationship}, Perm};
 use crate::core::domain::perm::perm_error::PermError;
@@ -189,7 +187,7 @@ impl PermRepo for MongoPermRepo
         if let Some(document) = result
         {
 
-            if let Some(perms_bson) = document.get("perm")
+            if let Some(perms_bson) = document.get("perms")
             {
 
                 let perms: Vec<u32> =

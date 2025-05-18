@@ -1,10 +1,5 @@
 use async_trait::async_trait;
-use mongodb::bson::oid::ObjectId;
 
-use crate::{
-    core::domain::user::user_type::{NewUser},
-};
-use crate::core::domain::user::User;
 
 #[async_trait]
 pub trait UserRepo
