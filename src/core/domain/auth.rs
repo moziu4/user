@@ -69,3 +69,18 @@ impl<'a>AuthEntity<'a>
         self.repo.save(self.props).await
     }
 }
+
+impl From<Auth> for perms::token::Auth {
+    fn from(service_auth: Auth) -> Self {
+        perms::token::Auth {
+            _id: Option::from(service_auth._id.expect("REASON").to_string()),
+            user_id: service_auth.user_id.to_string(),
+            username: service_auth.username,
+            email: service_auth.email,
+            password: service_auth.password,
+            roles: service_auth.roles.to_string(),
+            permissions: service_auth.permissions,
+        }
+    }
+}
+

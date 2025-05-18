@@ -47,6 +47,10 @@ pub enum AuthError {
     FailToDecodeToken,
 
     #[error("Incorrect Password")]
-    IncorrectPassword
+    IncorrectPassword,
+    
+
+    #[error("Permission library error")]
+    PermLibError
 }
 

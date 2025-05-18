@@ -1,5 +1,6 @@
 use actix_web::HttpRequest;
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{hash};
+use perms::has_permission;
 use crate::{
     core::domain::{
         auth::{auth_type::Role},
@@ -10,7 +11,6 @@ use crate::{
     },
 };
 use crate::context::Context;
-use crate::core::domain::auth::auth_type::Claims;
 use crate::core::domain::auth::{Auth, AuthEntity};
 use crate::core::domain::perm::perm_cat::READ_USER;
 use crate::core::domain::user::{User, UserEntity};
@@ -59,7 +59,7 @@ impl<'a> UserOps<'a>
             None => return Err(UserError::InvalidUserId)
         };
         
-        let password = hash(new_user.password, 10).map_err(|err| UserError::HashPasswordError)?;
+        let password = hash(new_user.password, 10).map_err(|_err| UserError::HashPasswordError)?;
         let role;
         if public
         {
@@ -98,7 +98,7 @@ impl<'a> UserOps<'a>
 
     pub async fn load_users(&self, req: HttpRequest) -> Result<Vec<User>, UserError>
     {
-        if !self.has_permission(req, READ_USER).await
+        if !has_permission(req, READ_USER).await
         {
             return Err(UserError::NotHasPermission);
         }
@@ -112,31 +112,5 @@ impl<'a> UserOps<'a>
         let user = self.repo.fetch_by_id(id).await?;
         Ok(user)
     }
-
-    async fn has_permission(&self, req: HttpRequest, permission: u32) -> bool
-    {
-        if let Some(auth_header) = req.headers().get("Authorization")
-        {
-            if let Ok(auth_str) = auth_header.to_str()
-            {
-                if auth_str.starts_with("Bearer ")
-                {
-                    let token = &auth_str[7..];
-                    let secret = std::env::var("SECRET_KEY").unwrap().to_string();
-                    let validation = jsonwebtoken::Validation::default();
-                    if let Ok(token_data) =
-                        jsonwebtoken::decode::<Claims>(&token,
-                                                       &jsonwebtoken::DecodingKey::from_secret(secret.as_ref()),
-                                                       &validation)
-                    {
-                        let claims = token_data.claims;
-                        return claims.permissions.contains(&permission);
-                    }
-                }
-            }
-        }
-        false
-    }
-
-      
+          
 }

@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::env;
-use async_trait::async_trait;
-use mongodb::{bson, bson::doc, error::Error as MongoError, Collection, Database};
+use mongodb::{bson::doc, error::Error as MongoError, Collection, Database};
 use chrono::{Utc, DateTime};
 use dotenv::dotenv;
 use futures_util::TryStreamExt;
@@ -10,30 +9,17 @@ use tracing::{info, error};
 use crate::data::access::migration::{Migration, MigrationContext};
 
 
-
-// Define la estructura de datos para llevar el registro de migraciones aplicadas
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MigrationLog {
     pub name: String,
     pub applied_at: DateTime<Utc>,
 }
 
-// Trait para las migraciones individuales
-// #[async_trait]
-// pub trait Migration: Send + Sync {
-//     fn name(&self) -> &'static str;
-// 
-//     async fn up(&self, context: &MigrationContext) -> Result<(), MongoError>;
-// }
 
-
-
-
-// `Migrator` maneja todas las migraciones registradas
 pub struct Migrator {
     db: Database,
-    migrations: Vec<Box<dyn Migration + Send + Sync>>, // Lista de migraciones disponibles
-    applied_migrations: HashSet<String>, // Mantiene el set de migraciones ya aplicadas
+    migrations: Vec<Box<dyn Migration + Send + Sync>>, 
+    applied_migrations: HashSet<String>, 
 }
 
 impl Migrator {

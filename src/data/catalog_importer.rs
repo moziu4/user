@@ -2,14 +2,12 @@ use std::collections::HashMap;
 use std::{env, fs};
 use dotenv::dotenv;
 use futures_util::TryStreamExt;
-use mongodb::bson::{doc, from_document, to_bson, Document};
-use mongodb::{Client, Collection};
-use crate::core::domain::auth::Auth;
-use crate::core::domain::auth::auth_error::AuthError;
+use mongodb::bson::{doc, to_bson, Document};
+use mongodb::{Client};
+
 use crate::core::domain::auth::auth_type::Role;
 use crate::core::domain::perm::perm_type::PermsRelationship;
 use crate::error::{ServiceError, ServiceResult};
-use crate::handlers::http::catalogs::catalog_data::RelationShipData;
 
 #[derive(Clone)]
 pub struct MongoCatalogRepo

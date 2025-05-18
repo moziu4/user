@@ -8,7 +8,6 @@ use crate::data::access::{
     perms_repo::MongoPermRepo,
     user_repo::MongoUserRepo,
 };
-use crate::data::catalog_importer::MongoCatalogRepo;
 
 #[derive(Clone)]
 pub struct Context

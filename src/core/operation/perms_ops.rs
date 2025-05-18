@@ -38,7 +38,7 @@ impl<'a> PermOps<'a>
         self.repo
             .create_perms_relationship(perms_relationships, self.context)
             .await
-            .map_err(|auth_err| PermError::PermRelationShipNotCreated)?;
+            .map_err(|_auth_err| PermError::PermRelationShipNotCreated)?;
         Ok(())
     }
 }

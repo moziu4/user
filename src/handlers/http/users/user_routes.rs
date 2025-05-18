@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use actix_web::{
     web,
-    web::{Json, Path},
+    web::{Json},
     HttpRequest,
     HttpResponse,
     Responder,

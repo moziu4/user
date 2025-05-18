@@ -1,13 +1,11 @@
 use std::{env, fs};
 use async_trait::async_trait;
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{hash};
 use dotenv::dotenv;
 use mongodb::{error::Error as MongoError, Database};
 use mongodb::bson::{doc, to_bson, Document};
 use crate::core::domain::auth::auth_type::Role;
 use crate::core::domain::perm::perm_type::PermsRelationship;
-use crate::core::domain::user::user_type::NewUser;
-use crate::core::operation::user_ops::UserOps;
 use crate::data::access::migration::MigrationContext;
 use crate::data::access::migration::Migration;
 

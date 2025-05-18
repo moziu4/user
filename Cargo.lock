@@ -1574,6 +1574,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "perms"
+version = "0.1.2"
+dependencies = [
+ "actix-web",
+ "jsonwebtoken",
+ "serde",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2306,6 +2315,7 @@ dependencies = [
  "futures-util",
  "jsonwebtoken",
  "mongodb",
+ "perms",
  "serde",
  "serde_json",
  "thiserror",

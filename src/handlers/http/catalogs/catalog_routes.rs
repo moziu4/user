@@ -1,10 +1,7 @@
 use std::sync::Arc;
 use actix_web::{web, HttpResponse, Responder};
-use actix_web::web::Json;
 use crate::context::Context;
-use crate::core::domain::auth::auth_type::AuthLogin;
 use crate::core::operation::catalogs_ops::CatalogsOps;
-use crate::data::access::auth_repo::MongoAuthRepo;
 use crate::data::catalog_importer::MongoCatalogRepo;
 
 pub fn config(cfg: &mut web::ServiceConfig)

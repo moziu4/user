@@ -1,10 +1,10 @@
 use bcrypt::verify;
+use perms::Token;
 use crate::{
     core::domain::auth::{auth_type::AuthLogin},
 };
 use crate::core::domain::auth::{Auth, AuthEntity};
 use crate::core::domain::auth::auth_error::AuthError;
-use crate::core::domain::auth::auth_type::Token;
 use crate::data::access::auth_repo::MongoAuthRepo;
 
 pub struct AuthOps<'a>
@@ -39,7 +39,10 @@ impl<'a> AuthOps<'a>
         if !is_password_valid {
             return Err(AuthError::IncorrectPassword);
         }
+        
+        let auth_perms: perms::Auth = auth.clone().into(); 
 
-        Token::new(auth)
+        let token = Token::new(auth_perms).map_err(|_| AuthError::PermLibError)?;
+        Ok(token)
     }
 }

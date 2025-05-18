@@ -169,7 +169,7 @@ impl PermRepo for MongoPermRepo
 
         collection.insert_many(docs)
             .await
-            .map_err(|e| PermError::PermRelationShipNotCreated)?;
+            .map_err(|_e| PermError::PermRelationShipNotCreated)?;
         Ok(())
     }
 
@@ -181,7 +181,7 @@ impl PermRepo for MongoPermRepo
 
         let result = collection_relationship.find_one(filter.clone())
             .await
-            .map_err(|e| { PermError::PermNotFound }
+            .map_err(|_e| { PermError::PermNotFound }
             )?;
 
         if let Some(document) = result
@@ -191,7 +191,7 @@ impl PermRepo for MongoPermRepo
             {
 
                 let perms: Vec<u32> =
-                    from_bson(perms_bson.clone()).map_err(|e| {
+                    from_bson(perms_bson.clone()).map_err(|_e| {
                         PermError::PermNotFound
                     })?;
 
