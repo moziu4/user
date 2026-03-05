@@ -2,9 +2,10 @@ use async_trait::async_trait;
 use futures_util::TryStreamExt;
 use mongodb::{bson::{doc, oid::ObjectId, Document}, Collection};
 use mongodb::bson::{from_document, to_document};
+use perms::UserID;
 use crate::core::domain::user::{user_repo::UserRepo, User};
 use crate::core::domain::user::user_error::UserError;
-use crate::utils::domains_ids::UserID;
+
 
 #[derive(Clone, Debug)]
 pub struct MongoUserRepo
@@ -190,63 +191,7 @@ impl MongoUserRepo
 #[async_trait]
 impl UserRepo for MongoUserRepo
 {
-    //     async fn insert_user(&self, user_new: UserNew) -> Result<User, UserError>
-    //     {
-    //         let user_collection = self.get_collection();
-    // 
-    // 
-    //         if user_collection.find_one(doc! { "username": &user_new.username })
-    //                           .await
-    //                           .map_err(|err| UserError { message: format!("Failed to check username: {}", err), })?
-    //                           .is_some()
-    //         {
-    //             return Err(UserError { message: "Username already exists".to_string(), });
-    //         }
-    // 
-    //         // Verificar si el email ya existe
-    //         if user_collection.find_one(doc! { "email": &user_new.email })
-    //                           .await
-    //                           .map_err(|err| UserError { message: format!("Failed to check email: {}", err), })?
-    //                           .is_some()
-    //         {
-    //             return Err(UserError { message: "Email already exists".to_string(), });
-    //         }
-    // 
-    //         // Verificar la validez del email
-    //         if !user_new.email.contains('@')
-    //         {
-    //             return Err(UserError { message: "Invalid email format".to_string(), });
-    //         }
-    // 
-    // 
-    //         // Primero insertar el User y obtener su user_id
-    //         let user_doc = doc! {
-    //             "username": &user_new.username,
-    //             "email": &user_new.email,
-    //             "name": &user_new.name,
-    //         };
-    // 
-    //         let user_result =
-    //             user_collection.insert_one(user_doc)
-    //                            .await
-    //                            .map_err(|err| UserError { message: format!("Failed to insert user: {}", err), })?;
-    // 
-    //         let user_id = user_result.inserted_id
-    //                                  .as_object_id()
-    //                                  .ok_or(UserError { message: "Failed to retrieve inserted user ID.".to_string(), })?;
-    // 
-    //         let user = User { id:       Some(user_id),
-    //                           username: user_new.username.clone(),
-    //                           email:    user_new.email.clone(),
-    //                           name:     user_new.name.clone(), };
-    // 
-    //         Ok(user)
-    //     }
-    // 
-    // 
-   
-    // 
-    // 
+    
     //     async fn load_user_by_username(&self, username: String) -> Result<User, UserError>
     //     {
     //         let collection = self.get_collection();

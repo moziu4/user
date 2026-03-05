@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures_util::TryStreamExt;
 use mongodb::{ bson::{doc, oid::ObjectId, Document}, Collection};
 use mongodb::bson::{from_document, to_document};
+use perms::AuthID;
 use crate::core::domain::{
     auth::{
         auth_repo::AuthRepo,
@@ -10,7 +11,7 @@ use crate::core::domain::{
 };
 use crate::core::domain::auth::Auth;
 use crate::core::domain::auth::auth_error::AuthError;
-use crate::utils::domains_ids::AuthID;
+
 
 #[derive(Clone)]
 pub struct MongoAuthRepo {
@@ -172,6 +173,19 @@ impl MongoAuthRepo {
     {
         let collection = &self.collection;
         let filter = doc! { "email": email};
+        let auth_doc = collection.find_one(filter)
+            .await
+            .map_err(|_| AuthError::AuthNotFound)?
+            .ok_or(AuthError::AuthNotFound)?;
+
+        let auth: Auth = from_document(auth_doc).map_err(|_| AuthError::AuthNotFound)?;
+        Ok(auth)
+    }
+
+    pub async fn fetch_by_user_id(&self, user_id: perms::UserID) -> Result<Auth, AuthError>
+    {
+        let collection = &self.collection;
+        let filter = doc! { "user_id": ObjectId::from(user_id)};
         let auth_doc = collection.find_one(filter)
             .await
             .map_err(|_| AuthError::AuthNotFound)?

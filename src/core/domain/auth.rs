@@ -1,8 +1,10 @@
+use crate::core::domain::auth::auth_type::Role;
+use perms::{AuthID, UserID};
 use serde::{Deserialize, Serialize};
 use crate::core::domain::auth::auth_error::AuthError;
-use crate::core::domain::auth::auth_type::Role;
+
 use crate::data::access::auth_repo::MongoAuthRepo;
-use crate::utils::domains_ids::{AuthID, UserID};
+
 
 pub mod auth_repo;
 
@@ -73,12 +75,12 @@ impl<'a>AuthEntity<'a>
 impl From<Auth> for perms::token::Auth {
     fn from(service_auth: Auth) -> Self {
         perms::token::Auth {
-            _id: Option::from(service_auth._id.expect("REASON").to_string()),
-            user_id: service_auth.user_id.to_string(),
+            _id: Option::from(service_auth._id.expect("REASON")),
+            user_id: service_auth.user_id,
             username: service_auth.username,
             email: service_auth.email,
             password: service_auth.password,
-            roles: service_auth.roles.to_string(),
+            roles: service_auth.roles.into(),
             permissions: service_auth.permissions,
         }
     }

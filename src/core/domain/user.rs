@@ -1,8 +1,9 @@
+use perms::UserID;
 use serde::{Deserialize, Serialize};
 use crate::core::domain::user::user_error::UserError;
 use crate::core::domain::user::user_type::NewUser;
 use crate::data::access::user_repo::MongoUserRepo;
-use crate::utils::domains_ids::UserID;
+
 
 pub mod user_repo;
 pub mod user_type;

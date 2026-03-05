@@ -49,6 +49,11 @@ pub enum UserError {
     AuthError,
     
     #[error("Not has permission")]
-    NotHasPermission
+    NotHasPermission,
 
+    #[error("Invalid target role")]
+    InvalidTargetRole,
+
+    #[error("Insufficient privileges for this role")]
+    InsufficientPrivileges,
 }

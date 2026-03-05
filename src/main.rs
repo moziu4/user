@@ -13,13 +13,15 @@ use env_logger::Env;
 
 use user::data::access::migration::{ MigrationContext};
 use user::data::access::migration::mongo::migrate_mongo;
+use user::handlers::message::nats_service::connect_nats;
 
 #[actix_web::main]
 async fn main() -> io::Result<()>
 {
     env_logger::init_from_env(Env::default().default_filter_or("debug"));
     let client = connect_to_db().await;
-    let context = Arc::new(Context::new(client.clone()));
+    let nats_client = connect_nats().await;
+    let context = Arc::new(Context::new(client.clone(), nats_client));
     let migration_context = MigrationContext{ client: client.clone()};
     match migrate_mongo(migration_context).await {
         Ok(applied) => {

@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+COPY tests/fixtures/perms_relationship.json /opt/perms_relationship.json
+COPY tests/fixtures/user_admin.json /opt/user_admin.json
 COPY --from=builder /app/target/release/user .
 
 CMD ["./user"]

@@ -1,17 +1,24 @@
 [
-  {
-    "id": 1,
-    "name": "create-user",
-    "description": "Permission to create a new user"
-  },
-  {
-    "id": 2,
-    "name": "update-user",
-    "description": "Permission to update a user"
-  },
-  {
-    "id": 3,
-    "name": "delete-user",
-    "description": "Permission to delete a user"
-  }
+  { "id": 1, "name": "create-agency", "description": "Permission to create a new agency" },
+  { "id": 2, "name": "update-agency", "description": "Permission to update agency" },
+  { "id": 3, "name": "delete-agency", "description": "Permission to delete a agency" },
+  { "id": 4, "name": "see-agency", "description": "Permission to see own agencies" },
+  { "id": 5, "name": "see-agencies", "description": "Permission to see all agencies" },
+  { "id": 6, "name": "see-panel-agencies", "description": "Permission to see panel agencies" },
+  { "id": 7, "name": "create-users-agencies", "description": "Permission to create users for agencies" },
+
+  { "id": 10, "name": "create-tenant", "description": "Permission to create a new tenant" },
+  { "id": 11, "name": "update-tenant", "description": "Permission to update a tenant" },
+  { "id": 12, "name": "delete-tenant", "description": "Permission to delete a tenant" },
+  { "id": 13, "name": "see-tenant", "description": "Permission to see own tenant" },
+  { "id": 14, "name": "see-tenants", "description": "Permission to see all tenants" },
+  { "id": 15, "name": "see-panel-tenants", "description": "Permission to see panel tenants" },
+  { "id": 16, "name": "create-users-tenants", "description": "Permission to create users for tenants" },
+
+  { "id": 20, "name": "create-user", "description": "Permission to create a new user" },
+  { "id": 21, "name": "update-user", "description": "Permission to update a user" },
+  { "id": 22, "name": "delete-user", "description": "Permission to delete a user" },
+  { "id": 23, "name": "see-user", "description": "Permission to see own user" },
+  { "id": 24, "name": "see-users", "description": "Permission to see all users" },
+  { "id": 25, "name": "see-my-user", "description": "Permission to see my user" }
 ]

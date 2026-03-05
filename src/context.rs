@@ -8,6 +8,7 @@ use crate::data::access::{
     perms_repo::MongoPermRepo,
     user_repo::MongoUserRepo,
 };
+use crate::handlers::message::nats_service::NatsService;
 
 #[derive(Clone)]
 pub struct Context
@@ -17,13 +18,14 @@ pub struct Context
     pub user_repo:  Arc<MongoUserRepo>,
     pub auth_repo:  Arc<MongoAuthRepo>,
     pub perm_repo: Arc<MongoPermRepo>,
+    pub nats_service: Option<Arc<NatsService>>,
     
 }
 
 
 impl Context
 {
-    pub fn new(client: Client) -> Self
+    pub fn new(client: Client, nats_client: Option<async_nats::Client>) -> Self
     {
         let arc_client = Arc::new(client);
         let db_name = env::var("MONGO_DATABASE").expect("Var MONGO_DATABASE no definida");
@@ -31,11 +33,14 @@ impl Context
         let user_collection = arc_client.database(&db_name).collection("users");
         let auth_collection = arc_client.database(&db_name).collection("auth");
         let perm_collection = arc_client.database(&db_name).collection("perm");
+
+        let nats_service = nats_client.map(|c| Arc::new(NatsService::new(c)));
         
         Self { client:     arc_client.clone(),
                   user_repo:  Arc::new(MongoUserRepo::new(user_collection)),
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
                   perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
+                  nats_service,
         }
     }
 

@@ -22,9 +22,10 @@ impl <'a>CatalogsOps<'a>
     {
         let importer = self.repo;
         
+        importer.import_perms().await?;
         importer.import_perm_relationships().await?;
         self.update_perms_in_users().await?;
-        println!("Import Catalog Permissions");
+        println!("Import Catalog Permissions and Relationships");
         Ok(())
     }
     

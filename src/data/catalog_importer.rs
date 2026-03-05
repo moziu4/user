@@ -4,7 +4,6 @@ use dotenv::dotenv;
 use futures_util::TryStreamExt;
 use mongodb::bson::{doc, to_bson, Document};
 use mongodb::{Client};
-
 use crate::core::domain::auth::auth_type::Role;
 use crate::core::domain::perm::perm_type::PermsRelationship;
 use crate::error::{ServiceError, ServiceResult};
@@ -21,21 +20,70 @@ impl MongoCatalogRepo{
             client
         }
     }
-    
+
+    pub async fn import_perms(&self) -> ServiceResult<()>
+    {
+        dotenv().ok();
+        let database_name = env::var("MONGO_DATABASE")
+            .expect("Variable isn't found: MONGO_DATABASE");
+        let catalogs_path = env::var("CATALOGS_PATH")
+            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
+
+        let db = self.client.database(database_name.as_str());
+        let coll = db.collection::<Document>("perms");
+        coll.delete_many(doc! {}).await
+            .expect("Error al vaciar la colección 'perms'");
+
+        let file_path = format!("{}/perms.json", catalogs_path);
+        let file_content = fs::read_to_string(&file_path)
+            .unwrap_or_else(|_| panic!("Error al leer el archivo {}", file_path));
+
+        // Note: Perm struct from domain has _id: Option<PermID>, name, description.
+        // The JSON has id: u32, name, description.
+        // We'll use a local struct or deserialize to a value and map it.
+        #[derive(serde::Deserialize)]
+        struct PermJson {
+            id: u32,
+            name: String,
+            description: String,
+        }
+
+        let perms_json: Vec<PermJson> = serde_json::from_str(&file_content).unwrap();
+
+        for p in perms_json {
+            let doc = doc! {
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+            };
+            coll.insert_one(doc).await
+                .expect("Error al insertar el permiso en MongoDB");
+        }
+
+        Ok(())
+    }
+
     pub async fn import_perm_relationships(&self) -> ServiceResult<()>
     {
         dotenv().ok();
         let database_name = env::var("MONGO_DATABASE")
             .expect("Variable isn't found: MONGO_DATABASE");
+        let catalogs_path = env::var("CATALOGS_PATH")
+            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
 
         let db = self.client.database(database_name.as_str()) ;
         let coll = db.collection::<Document>("relationship");
-        coll.delete_many(Document::new()).await
+        coll.delete_many(doc! {}).await
             .expect("Error al vaciar la colección 'relationship'");
 
-        let file_path = "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures/perms_relationship.json";
-        let file_content = fs::read_to_string(file_path)
-            .expect("Error al leer el archivo perms_relationship.json");
+        // Try both perms_relationship.json and relationship.json as requested
+        let mut file_path = format!("{}/relationship.json", catalogs_path);
+        if !fs::metadata(&file_path).is_ok() {
+            file_path = format!("{}/perms_relationship.json", catalogs_path);
+        }
+
+        let file_content = fs::read_to_string(&file_path)
+            .unwrap_or_else(|_| panic!("Error al leer el archivo {}", file_path));
 
         let mut relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content).unwrap();
 

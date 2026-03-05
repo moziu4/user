@@ -1,3 +1,4 @@
+use std::env;
 use bcrypt::verify;
 use perms::Token;
 use crate::{
@@ -42,7 +43,8 @@ impl<'a> AuthOps<'a>
         
         let auth_perms: perms::Auth = auth.clone().into(); 
 
-        let token = Token::new(auth_perms).map_err(|_| AuthError::PermLibError)?;
+        let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
+        let token = Token::new(secret, auth_perms).map_err(|_| AuthError::PermLibError)?;
         Ok(token)
     }
 }

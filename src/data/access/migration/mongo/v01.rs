@@ -33,45 +33,76 @@ impl Migration for Migration001 {
 
 impl Migration001 {
     async fn create_relationships(&self, db: &Database) -> Result<(), MongoError> {
-        let catalogs_path = env::var("CATALOGS_PATH").expect("Path of catalog not defined");
-        let file_path = format!("{}/perms_relationship.json", catalogs_path);
+        let catalogs_path = env::var("CATALOGS_PATH")
+            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
+        
+        let mut file_path = format!("{}/relationship.json", catalogs_path);
+        if !fs::metadata(&file_path).is_ok() {
+            file_path = format!("{}/perms_relationship.json", catalogs_path);
+        }
 
-        let file_content = fs::read_to_string(file_path)
-            .expect("Error al leer el archivo perms_relationship.json");
+        let file_content = fs::read_to_string(&file_path)
+            .expect(&format!("Error al leer el archivo {}", file_path));
         let relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content).unwrap();
-        for relationship in relationships {
-            let coll = db.collection::<mongodb::bson::Document>("relationship");
-            let bson_doc = to_bson(&relationship)
-                .expect("Error al convertir PermsRelationship a BSON")
-                .as_document()
-                .expect("Error al convertir BSON a Document")
-                .to_owned();
+        let coll = db.collection::<Document>("relationship");
 
-            coll.insert_one(bson_doc).await?;
+        for relationship in relationships {
+            let filter = doc! { "role": relationship.role.to_string() };
+            let count = coll.count_documents(filter).await?;
+            if count == 0 {
+                let bson_doc = to_bson(&relationship)
+                    .expect("Error al convertir PermsRelationship a BSON")
+                    .as_document()
+                    .expect("Error al convertir BSON a Document")
+                    .to_owned();
+
+                coll.insert_one(bson_doc).await?;
+            }
         }
 
         Ok(())
     }
 
     async fn create_admin_user(&self, db: &Database) -> Result<(), MongoError> {
-        let file_path = "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures/user_admin.json"; 
-        let file_content = fs::read_to_string(file_path)
-            .expect("Error al leer el archivo user_admin.json");
+        let catalogs_path = env::var("CATALOGS_PATH")
+            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
+        let file_path = format!("{}/user_admin.json", catalogs_path);
+
+        let file_content = fs::read_to_string(&file_path)
+            .expect(&format!("Error al leer el archivo {}", file_path));
         let user_data: Document = serde_json::from_str(&file_content)
             .expect("Error al deserializar el JSON de usuario administrador");
+
+        let username = user_data.get_str("username").expect("Falta el campo 'username'");
+        let email = user_data.get_str("email").expect("Falta el campo 'email'");
+
+        let auth_coll = db.collection::<Document>("auth");
+        let existing_auth = auth_coll.find_one(doc! { "username": username }).await?;
+        
+        if existing_auth.is_some() {
+            println!("El usuario administrador '{}' ya existe. Saltando creación.", username);
+            return Ok(());
+        }
 
         let mut user_data_cleaned = user_data.clone();
         user_data_cleaned.remove("password");
         let user_coll = db.collection::<Document>("users");
-        let insert_result = user_coll
-            .insert_one(user_data_cleaned)
-            .await
-            .expect("Error al insertar el usuario en la base de datos");
+        
+        // Check if user already exists in users collection too
+        let existing_user = user_coll.find_one(doc! { "username": username }).await?;
+        let user_id = if let Some(u) = existing_user {
+            u.get_object_id("_id").expect("No se pudo obtener el ObjectId del usuario existente")
+        } else {
+            let insert_result = user_coll
+                .insert_one(user_data_cleaned)
+                .await
+                .expect("Error al insertar el usuario en la base de datos");
 
-        let user_id = insert_result
-            .inserted_id
-            .as_object_id()
-            .expect("No se pudo obtener el ObjectId del usuario");
+            insert_result
+                .inserted_id
+                .as_object_id()
+                .expect("No se pudo obtener el ObjectId del usuario insertado")
+        };
 
         let role = Role::SuperAdmin;
         let relationship_coll = db.collection::<Document>("relationship");
@@ -79,10 +110,6 @@ impl Migration001 {
             .find_one(doc! { "role": role.to_string() })
             .await?
             .expect("No se encontraron permisos para el rol SuperAdmin");
-
-
-      
-
 
         let perms = relationship_doc
             .get_array("perms")
@@ -100,20 +127,16 @@ impl Migration001 {
             })
             .collect::<Vec<u32>>();
 
-
-
         let plain_password = user_data
             .get_str("password")
             .expect("Falta el campo `password` en el JSON");
         let hashed_password = hash(plain_password, 10)
             .expect("Error al hashear el password");
         
-        
-        let auth_coll = db.collection::<Document>("auth");
         let auth_doc = doc! {
             "user_id": user_id,
-            "username": user_data.get_str("username").expect("Falta el campo 'username'"),
-            "email": user_data.get_str("email").expect("Falta el campo 'email'"),
+            "username": username,
+            "email": email,
             "password": hashed_password,
             "roles": role.to_string(),
             "permissions": perms
