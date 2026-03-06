@@ -31,13 +31,21 @@ impl Context
         let db_name = env::var("MONGO_DATABASE").expect("Var MONGO_DATABASE no definida");
         
         let user_collection = arc_client.database(&db_name).collection("users");
+        let membership_collection = arc_client.database(&db_name).collection("memberships");
+        let phone_collection = arc_client.database(&db_name).collection("phones");
+        let address_collection = arc_client.database(&db_name).collection("addresses");
         let auth_collection = arc_client.database(&db_name).collection("auth");
         let perm_collection = arc_client.database(&db_name).collection("perm");
 
         let nats_service = nats_client.map(|c| Arc::new(NatsService::new(c)));
         
         Self { client:     arc_client.clone(),
-                  user_repo:  Arc::new(MongoUserRepo::new(user_collection)),
+                  user_repo:  Arc::new(MongoUserRepo::new(
+                      user_collection,
+                      membership_collection,
+                      phone_collection,
+                      address_collection
+                  )),
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
                   perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
                   nats_service,

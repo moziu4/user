@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::domain::user::user_error::UserError;
 use crate::core::domain::user::user_type::NewUser;
 use crate::data::access::user_repo::MongoUserRepo;
+use chrono::{DateTime, Utc};
 
 
 pub mod user_repo;
@@ -12,13 +13,26 @@ pub mod user_error;
 
 
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum Status {
+    Active,
+    Inactive,
+    Suspended,
+    Deleted,
+    Anonymized,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User
 {
-    pub _id:       Option<UserID>,
-    pub username: String,
-    pub email:    String,
-    pub name:     String,
+    pub _id:           Option<UserID>,
+    pub username:      String,
+    pub email:         String,
+    pub name:          String,
+    pub status:        Status,
+    pub deleted_at:    Option<DateTime<Utc>>,
+    pub anonymized_at: Option<DateTime<Utc>>,
+    pub gpd_erased:    bool,
 }
 
 #[derive(Clone)]
@@ -35,10 +49,14 @@ impl <'a> UserEntity<'a>
        Self {
            repo,
            props: User {
-               _id:       None,
-               username: new_user.username,
-               email:    new_user.email,
-               name:     new_user.name,
+               _id:           None,
+               username:      new_user.username,
+               email:         new_user.email,
+               name:          new_user.name,
+               status:        Status::Active,
+               deleted_at:    None,
+               anonymized_at: None,
+               gpd_erased:    false,
            }
        }
    }

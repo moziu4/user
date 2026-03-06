@@ -52,6 +52,25 @@ macro_rules! implement_id {
 
 implement_id!(PermID);
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct AgencyID(ObjectId);
+implement_id!(AgencyID);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct TenantID(ObjectId);
+implement_id!(TenantID);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct MembershipID(ObjectId);
+implement_id!(MembershipID);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct PhoneID(ObjectId);
+implement_id!(PhoneID);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct AddressID(ObjectId);
+implement_id!(AddressID);
 
 impl std::fmt::Display for PermID
 {
@@ -60,3 +79,21 @@ impl std::fmt::Display for PermID
         write!(f, "{}", self.0)
     }
 }
+
+macro_rules! implement_display {
+    ($type:ident) => {
+        impl std::fmt::Display for $type
+        {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+            {
+                write!(f, "{}", self.0)
+            }
+        }
+    };
+}
+
+implement_display!(AgencyID);
+implement_display!(TenantID);
+implement_display!(MembershipID);
+implement_display!(PhoneID);
+implement_display!(AddressID);

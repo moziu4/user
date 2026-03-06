@@ -11,3 +11,6 @@ db.createUser({
 db.createCollection("users");
 db.createCollection("relationship");
 db.createCollection("auth");
+db.createCollection("memberships");
+db.createCollection("phones");
+db.createCollection("addresses");
