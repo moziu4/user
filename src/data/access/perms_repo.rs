@@ -161,6 +161,7 @@ impl PermRepo for MongoPermRepo
         let docs: Vec<Document> = perms_relationships.into_iter()
             .map(|perms_relationship| {
                 doc! {
+                                                                 "id": perms_relationship.id,
                                                                  "role": perms_relationship.role.to_string(),
                                                                  "perms": perms_relationship.perms,
                                                              }
@@ -173,11 +174,11 @@ impl PermRepo for MongoPermRepo
         Ok(())
     }
 
-    async fn charge_permissions(&self, command: String, context: &Context) -> Result<Vec<u32>, PermError>
+    async fn charge_permissions(&self, role_id: u32, context: &Context) -> Result<Vec<u32>, PermError>
     {
         let collection_relationship: Collection<Document> = context.get_collection("relationship");
 
-        let filter = doc! { "role": command };
+        let filter = doc! { "id": role_id };
 
         let result = collection_relationship.find_one(filter.clone())
             .await

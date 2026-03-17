@@ -8,8 +8,34 @@ pub fn config(cfg: &mut web::ServiceConfig)
 {
     cfg.service(
         web::scope("/api/catalogs")
-            .route("/import", web::post().to(import_catalogs)
-            ));
+            .route("/import", web::post().to(import_catalogs))
+            .route("/roles", web::get().to(get_roles))
+            .route("/document-types", web::get().to(get_document_types))
+    );
+}
+
+async fn get_roles(context: web::Data<Arc<Context>>) -> impl Responder {
+    let client = context.client.as_ref().clone();
+    let repo = MongoCatalogRepo::new(client.clone());
+    let auth_repo = context.get_ref().auth_repo.clone();
+    let catalogs_ops = CatalogsOps::new(&repo, &auth_repo);
+
+    match catalogs_ops.get_roles().await {
+        Ok(roles) => HttpResponse::Ok().json(roles),
+        Err(err) => HttpResponse::InternalServerError().json(err.to_string()),
+    }
+}
+
+async fn get_document_types(context: web::Data<Arc<Context>>) -> impl Responder {
+    let client = context.client.as_ref().clone();
+    let repo = MongoCatalogRepo::new(client.clone());
+    let auth_repo = context.get_ref().auth_repo.clone();
+    let catalogs_ops = CatalogsOps::new(&repo, &auth_repo);
+
+    match catalogs_ops.get_document_types().await {
+        Ok(types) => HttpResponse::Ok().json(types),
+        Err(err) => HttpResponse::InternalServerError().json(err.to_string()),
+    }
 }
 
 async fn import_catalogs(context: web::Data<Arc<Context>>) -> impl Responder

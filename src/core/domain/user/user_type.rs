@@ -1,7 +1,8 @@
 use crate::core::domain::auth::auth_type::Role;
 use serde::{Deserialize, Serialize};
-use crate::utils::domains_ids::{PhoneID, AddressID, TenantID};
+use crate::utils::domains_ids::{PhoneID, AddressID, TenantID, AgencyID};
 use perms::UserID;
+use mongodb::bson::oid::ObjectId;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NewUser
@@ -10,7 +11,11 @@ pub struct NewUser
     pub email:    String,
     pub password: String,
     pub name:     String,
-    pub role:     Option<Role>,
+    pub surname_1: Option<String>,
+    pub surname_2: Option<String>,
+    pub role_id:   Option<u32>,
+    pub agency_id: Option<AgencyID>,
+    pub tenant_id: Option<TenantID>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,6 +47,23 @@ pub struct Phone {
 pub enum AddressStatus {
     Active,
     Inactive,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum IdentityDocumentType {
+    DNI,
+    NIE,
+    Passport,
+    Other,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct IdentityDocument {
+    pub _id: Option<ObjectId>,
+    pub doc_type: IdentityDocumentType,
+    pub number: String,
+    pub country: String,
+    pub expiry_date: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -24,6 +24,10 @@ impl MongoAuthRepo {
        Self { collection }
     }
 
+    pub fn get_collection(&self) -> &Collection<Document> {
+        &self.collection
+    }
+
     pub async fn create (&self, mut new_auth: Auth) -> Result<Auth, AuthError>
     {
         if new_auth._id.is_none()
@@ -40,7 +44,7 @@ impl MongoAuthRepo {
                 username: new_auth.username,
                 email: new_auth.email,
                 password: new_auth.password,
-                roles: new_auth.roles,
+                role_id: new_auth.role_id,
                 permissions: new_auth.permissions,
             })
         }

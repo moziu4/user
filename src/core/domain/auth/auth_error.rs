@@ -51,6 +51,9 @@ pub enum AuthError {
     
 
     #[error("Permission library error")]
-    PermLibError
+    PermLibError,
+
+    #[error("Membership not found")]
+    MembershipNotFound,
 }
 

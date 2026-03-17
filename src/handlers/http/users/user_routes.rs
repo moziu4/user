@@ -11,17 +11,16 @@ use actix_web::{
 
 use crate::{
     context::Context,
-    core::{domain::user::user_type::NewUser, operation::user_ops::UserOps },
+    core::{domain::user::user_type::{NewUser, IdentityDocumentType}, operation::user_ops::UserOps },
 };
 
 
 pub fn config(cfg: &mut web::ServiceConfig)
 {
     cfg.service(web::scope("/api/users")
-        .route("/newuser", web::post().to(new_user)).service(web::scope("")
+        .route("/newuser", web::post().to(new_user))
+        .service(web::scope("")
         .route("/all", web::get().to(load_users))
-        // .route("/username/{una}", web::get().to(load_users_username))
-        // .route("/userid/{id}", web::get().to(load_users_id))
     ));
 }
 

@@ -3,6 +3,7 @@ use bcrypt::verify;
 use perms::Token;
 use crate::{
     core::domain::auth::{auth_type::AuthLogin},
+    data::access::user_repo::MongoUserRepo,
 };
 use crate::core::domain::auth::{Auth, AuthEntity};
 use crate::core::domain::auth::auth_error::AuthError;
@@ -11,11 +12,12 @@ use crate::data::access::auth_repo::MongoAuthRepo;
 pub struct AuthOps<'a>
 {
     repo: &'a MongoAuthRepo,
+    user_repo: &'a MongoUserRepo,
 }
 
 impl<'a> AuthOps<'a>
 {
-    pub fn new(repo: &'a MongoAuthRepo) -> Self  {Self {repo}}
+    pub fn new(repo: &'a MongoAuthRepo, user_repo: &'a MongoUserRepo) -> Self  {Self {repo, user_repo}}
     
     pub async fn create_auth(&self, auth: Auth) -> Result<Auth, AuthError>
     {
@@ -34,14 +36,15 @@ impl<'a> AuthOps<'a>
     {
         let auth = self.repo.fetch_by_username(auth_login.clone().username).await?;
 
-        let is_password_valid = verify(auth_login.password, &auth.password)
+        let is_password_valid = verify(auth_login.password.clone(), &auth.password)
             .map_err(|_| AuthError::IncorrectPassword)?;
 
         if !is_password_valid {
             return Err(AuthError::IncorrectPassword);
         }
         
-        let auth_perms: perms::Auth = auth.clone().into(); 
+        let auth_entity = AuthEntity::new(auth.clone(), self.repo).await;
+        let auth_perms = auth_entity.login_contextual(self.user_repo, auth_login.tenant_id, auth_login.agency_id).await?;
 
         let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
         let token = Token::new(secret, auth_perms).map_err(|_| AuthError::PermLibError)?;

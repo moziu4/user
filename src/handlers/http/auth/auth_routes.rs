@@ -16,7 +16,8 @@ pub fn config(cfg: &mut web::ServiceConfig)
 async fn login(context: web::Data<Arc<Context>>, payload: Json<AuthLogin>) -> impl Responder
 {
     let auth_repo = context.get_ref().get_auth_repo();
-    let auth_ops = AuthOps::new(&auth_repo);
+    let user_repo = context.get_ref().get_user_repo();
+    let auth_ops = AuthOps::new(&auth_repo, &user_repo);
     match auth_ops.do_login(payload.into_inner())
                       .await
     {

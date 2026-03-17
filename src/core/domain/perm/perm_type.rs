@@ -5,6 +5,23 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermsRelationship
 {
+    pub id:    Option<u32>,
     pub role:  Role,
     pub perms: Vec<u32>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoleInfo
+{
+    pub id:    u32,
+    pub role:  Role,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentType
+{
+    pub id:    u32,
+    pub name:  String,
 }

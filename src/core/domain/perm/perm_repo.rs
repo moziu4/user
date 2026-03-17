@@ -7,5 +7,5 @@ use crate::core::domain::perm::perm_type::PermsRelationship;
 pub trait PermRepo
 {
     async fn create_perms_relationship(&self, perms_relationships: Vec<PermsRelationship>, context: &Context) -> Result<(), PermError>;
-    async fn charge_permissions(&self, command: String, context: &Context) -> Result<Vec<u32>, PermError>;
+    async fn charge_permissions(&self, role_id: u32, context: &Context) -> Result<Vec<u32>, PermError>;
 }

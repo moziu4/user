@@ -34,27 +34,87 @@ impl Migration for Migration001 {
 impl Migration001 {
     async fn create_relationships(&self, db: &Database) -> Result<(), MongoError> {
         let catalogs_path = env::var("CATALOGS_PATH")
-            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
+            .unwrap_or_else(|_| "tests/fixtures".to_string());
         
-        let mut file_path = format!("{}/relationship.json", catalogs_path);
-        if !fs::metadata(&file_path).is_ok() {
-            file_path = format!("{}/perms_relationship.json", catalogs_path);
-        }
+        let file_content = if catalogs_path.starts_with("http") {
+            let mut content = None;
+            let names = vec!["relationship.json", "perms_relationship.json"];
+            let client = reqwest::Client::builder()
+                .user_agent("user-service")
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new());
 
-        let file_content = fs::read_to_string(&file_path)
-            .expect(&format!("Error al leer el archivo {}", file_path));
-        let relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content).unwrap();
+            for name in names {
+                let url = format!("{}/{}", catalogs_path, name);
+                if let Ok(resp) = client.get(&url).send().await {
+                    if resp.status().is_success() {
+                        if let Ok(text) = resp.text().await {
+                            content = Some(text);
+                            break;
+                        }
+                    }
+                }
+            }
+            content
+        } else {
+            None
+        };
+
+        let file_content = if let Some(content) = file_content {
+            content
+        } else {
+            // Intentar encontrar el archivo en varias rutas posibles
+            let mut base_paths = vec![
+                "tests/fixtures".to_string(), 
+                "/opt".to_string(),
+                "/opt/catalogs".to_string(),
+                "catalogs/user-messages".to_string(),
+                "../catalogs/user-messages".to_string(),
+                "C:/Users/alorenzo/Proyectos-2/catalogs/user-messages".to_string(),
+            ];
+            
+            if !catalogs_path.starts_with("http") {
+                base_paths.insert(0, catalogs_path.clone());
+            }
+            
+            let mut content = None;
+
+            for base in base_paths {
+                let paths_to_try = vec![
+                    format!("{}/relationship.json", base),
+                    format!("{}/perms_relationship.json", base),
+                ];
+
+                for path in paths_to_try {
+                    if let Ok(c) = fs::read_to_string(&path) {
+                        content = Some(c);
+                        break;
+                    }
+                }
+                if content.is_some() { break; }
+            }
+            content.expect(&format!(
+                "Error: No se pudo encontrar relationship.json o perms_relationship.json en {} ni en rutas locales", 
+                catalogs_path
+            ))
+        };
+
+        let relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content)
+            .expect("Error al deserializar el JSON de relaciones");
         let coll = db.collection::<Document>("relationship");
 
         for relationship in relationships {
-            let filter = doc! { "role": relationship.role.to_string() };
+            let filter = doc! { "role": (relationship.role as u32) };
             let count = coll.count_documents(filter).await?;
             if count == 0 {
-                let bson_doc = to_bson(&relationship)
+                let mut bson_doc = to_bson(&relationship)
                     .expect("Error al convertir PermsRelationship a BSON")
                     .as_document()
                     .expect("Error al convertir BSON a Document")
-                    .to_owned();
+                    .clone();
+
+                // Asegurar que el campo 'role' en el documento insertado sea el ID numérico
+                bson_doc.insert("role", relationship.role as u32);
 
                 coll.insert_one(bson_doc).await?;
             }
@@ -65,11 +125,58 @@ impl Migration001 {
 
     async fn create_admin_user(&self, db: &Database) -> Result<(), MongoError> {
         let catalogs_path = env::var("CATALOGS_PATH")
-            .unwrap_or_else(|_| "C:/Users/alorenzo/Proyectos-2/user/tests/fixtures".to_string());
-        let file_path = format!("{}/user_admin.json", catalogs_path);
+            .unwrap_or_else(|_| "tests/fixtures".to_string());
+        
+        let file_content = if catalogs_path.starts_with("http") {
+            let url = format!("{}/user_admin.json", catalogs_path);
+            let mut content = None;
+            let client = reqwest::Client::builder()
+                .user_agent("user-service")
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new());
 
-        let file_content = fs::read_to_string(&file_path)
-            .expect(&format!("Error al leer el archivo {}", file_path));
+            if let Ok(resp) = client.get(&url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(text) = resp.text().await {
+                        content = Some(text);
+                    }
+                }
+            }
+            content
+        } else {
+            None
+        };
+
+        let file_content = if let Some(content) = file_content {
+            content
+        } else {
+            let mut file_path = format!("{}/user_admin.json", catalogs_path);
+            let mut content = None;
+            
+            if !catalogs_path.starts_with("http") && fs::metadata(&file_path).is_ok() {
+                content = fs::read_to_string(&file_path).ok();
+            }
+
+            if content.is_none() {
+                let fallback_paths = vec![
+                    "tests/fixtures/user_admin.json", 
+                    "/opt/user_admin.json",
+                    "/opt/catalogs/user_admin.json",
+                    "catalogs/user-messages/user_admin.json",
+                    "../catalogs/user-messages/user_admin.json",
+                    "C:/Users/alorenzo/Proyectos-2/catalogs/user-messages/user_admin.json"
+                ];
+                for fallback in fallback_paths {
+                    if fs::metadata(fallback).is_ok() {
+                        content = fs::read_to_string(fallback).ok();
+                        break;
+                    }
+                }
+            }
+
+            content.expect(&format!("Error al leer el archivo user_admin.json desde {} o rutas locales", catalogs_path))
+        };
+
         let user_data: Document = serde_json::from_str(&file_content)
             .expect("Error al deserializar el JSON de usuario administrador");
 
@@ -107,7 +214,7 @@ impl Migration001 {
         let role = Role::SuperAdmin;
         let relationship_coll = db.collection::<Document>("relationship");
         let relationship_doc = relationship_coll
-            .find_one(doc! { "role": role.to_string() })
+            .find_one(doc! { "role": role.to_id() })
             .await?
             .expect("No se encontraron permisos para el rol SuperAdmin");
 
@@ -138,7 +245,7 @@ impl Migration001 {
             "username": username,
             "email": email,
             "password": hashed_password,
-            "roles": role.to_string(),
+            "role_id": role.to_id(),
             "permissions": perms
         };
         

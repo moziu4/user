@@ -9,6 +9,7 @@ use crate::{
         user::{
             user_type::{NewUser},
         },
+        membership::Membership,
     },
 };
 use crate::context::Context;
@@ -41,24 +42,20 @@ impl<'a> UserOps<'a>
         }
     }
 
-    fn can_create_role(requester_role: Role, target_role: Role) -> bool {
-        match (requester_role, target_role) {
-            // SuperAdmin can create anyone
-            (Role::SuperAdmin, _) => true,
+    fn can_create_role(requester_role_id: u32, target_role_id: u32) -> bool {
+        let requester_role = Role::from_id(requester_role_id).unwrap_or(Role::Guest);
+        let target_role = Role::from_id(target_role_id).unwrap_or(Role::Guest);
 
-            // AgencyOwner/Admin can create anyone EXCEPT SuperAdmin
-            (Role::AgencyOwner, role) | (Role::AgencyAdmin, role) => role != Role::SuperAdmin,
+        // Un usuario NO puede crear a otro con su mismo rol o superior.
+        // La jerarquía en `Role` es (de mayor a menor):
+        // SuperAdmin, AgencyOwner, AgencyAdmin, AgencyMember, TenantAdmin, Editor, Client, Guest.
 
-            // TenantAdmin can only create certain roles (usually within their tenant)
-            // They cannot create SuperAdmin, AgencyOwner, or AgencyAdmin
-            (Role::TenantAdmin, role) => match role {
-                Role::TenantAdmin | Role::Editor | Role::Client | Role::Guest => true,
-                _ => false,
-            },
-
-            // Other roles generally cannot create users (unless they have the permission, which we check separately)
-            _ => false,
-        }
+        // En Rust, si el enum deriva `PartialOrd`, el orden es el de declaración.
+        // Role ya deriva `PartialOrd`, por lo que podemos comparar directamente.
+        // SuperAdmin (0) < AgencyOwner (1) < ... < Guest (7)
+        // Por tanto, si queremos que el CREADOR tenga MAYOR rango, su valor numérico debe ser MENOR.
+        
+        requester_role < target_role
     }
 
     pub async fn create_user(&self, new_user: NewUser, req: HttpRequest) -> Result<User, UserError>
@@ -66,7 +63,8 @@ impl<'a> UserOps<'a>
         let _secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
 
         // 1. Determine target role
-        let target_role = new_user.role.clone().unwrap_or(Role::Client);
+        let target_role_id = new_user.role_id.unwrap_or(Role::Client as u32);
+        let target_role = Role::from_id(target_role_id).unwrap_or(Role::Client);
 
         // 2. Extract requester info (permissions and role)
         // Manual extraction for now as we don't have the function in perms
@@ -82,7 +80,8 @@ impl<'a> UserOps<'a>
              .map_err(|_| UserError::Unauthorized)?;
 
         let requester_perms = requester_claims.permissions;
-        let requester_role = requester_claims.role;
+        let requester_role_id = requester_claims.role_id;
+        let requester_role = Role::from_id(requester_role_id).unwrap_or(Role::Guest);
 
         // 3. Check basic permission to create users based on target role
         let has_basic_create = requester_perms.contains(&CREATE_USER);
@@ -92,12 +91,15 @@ impl<'a> UserOps<'a>
         let is_target_agency = matches!(target_role, Role::AgencyOwner | Role::AgencyAdmin | Role::AgencyMember);
         let is_target_tenant = matches!(target_role, Role::TenantAdmin | Role::Editor | Role::Client | Role::Guest);
 
+        // Validación contextual:
+        // - Los de Agencia se crean en la "pantalla de agencias" (requiere CREATE_USERS_AGENCIES)
+        // - Los de Tenant se crean en la "pantalla de tenant" (requiere CREATE_USERS_TENANTS)
         let can_proceed = if has_basic_create {
-            true // SuperAdmin or user with global create-user can create anyone (still subject to hierarchy)
+            true // SuperAdmin con permiso global puede todo (sujeto a jerarquía)
         } else if is_target_agency {
             has_agency_create
         } else if is_target_tenant {
-            has_tenant_create || has_agency_create // Agency roles can create tenant users if they have the permission
+            has_tenant_create
         } else {
             false
         };
@@ -106,8 +108,8 @@ impl<'a> UserOps<'a>
             return Err(UserError::NotHasPermission);
         }
 
-        // 4. Enforce role hierarchy
-        if !Self::can_create_role(requester_role, target_role.clone()) {
+        // 4. Enforce strict role hierarchy
+        if !Self::can_create_role(requester_role_id, target_role_id) {
             return Err(UserError::InsufficientPrivileges);
         }
 
@@ -133,7 +135,7 @@ impl<'a> UserOps<'a>
 
         // 6. Charge permissions for the target role
         let perms = self.perm_repo
-            .charge_permissions(target_role.to_string(),self.context)
+            .charge_permissions(target_role_id, self.context)
             .await
             .map_err(|_| UserError::PermError)?;
 
@@ -143,7 +145,7 @@ impl<'a> UserOps<'a>
             username: user.username.clone(),
             email: user.email.clone(),
             password ,
-            roles: target_role,
+            role_id: target_role_id,
             permissions: perms,
         };
 
@@ -152,7 +154,19 @@ impl<'a> UserOps<'a>
             .await
             .map_err(|_| UserError::AuthError)?;
 
-        // 7. Publish NATS event
+        // 7. Create Membership if agency_id or tenant_id is provided
+        if new_user.agency_id.is_some() || new_user.tenant_id.is_some() {
+            let mut membership = Membership::new(user_id.clone());
+            if let Some(agency_id) = new_user.agency_id {
+                membership.add_agency(agency_id, target_role_id);
+            }
+            if let Some(tenant_id) = new_user.tenant_id {
+                membership.add_tenant(tenant_id, target_role_id);
+            }
+            self.repo.create_membership(membership).await?;
+        }
+
+        // 8. Publish NATS event
         if let Some(nats_service) = &self.context.nats_service {
             nats_service.publish_user_event(
                 user_id.to_string(),

@@ -20,5 +20,8 @@ pub enum ServiceError {
     UpdateUserError,
 
     #[error("Relational Deserialize Error")]   
-    RelationalDeserializeError
+    RelationalDeserializeError,
+
+    #[error("Catalog File Error: {0}")]
+    CatalogFileError(String),
 }

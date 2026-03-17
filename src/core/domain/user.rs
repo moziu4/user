@@ -1,7 +1,7 @@
 use perms::UserID;
 use serde::{Deserialize, Serialize};
 use crate::core::domain::user::user_error::UserError;
-use crate::core::domain::user::user_type::NewUser;
+use crate::core::domain::user::user_type::{NewUser, IdentityDocument};
 use crate::data::access::user_repo::MongoUserRepo;
 use chrono::{DateTime, Utc};
 
@@ -29,6 +29,9 @@ pub struct User
     pub username:      String,
     pub email:         String,
     pub name:          String,
+    pub surname_1:     Option<String>,
+    pub surname_2:     Option<String>,
+    pub documents:     Vec<IdentityDocument>,
     pub status:        Status,
     pub deleted_at:    Option<DateTime<Utc>>,
     pub anonymized_at: Option<DateTime<Utc>>,
@@ -53,6 +56,9 @@ impl <'a> UserEntity<'a>
                username:      new_user.username,
                email:         new_user.email,
                name:          new_user.name,
+               surname_1:     new_user.surname_1,
+               surname_2:     new_user.surname_2,
+               documents:     Vec::new(),
                status:        Status::Active,
                deleted_at:    None,
                anonymized_at: None,
