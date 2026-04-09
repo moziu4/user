@@ -7,7 +7,15 @@ pub struct PermsRelationship
 {
     pub id:    Option<u32>,
     pub role:  Role,
-    pub perms: Vec<u32>,
+    pub perms: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PermsRelationshipDTO
+{
+    pub id:    Option<u32>,
+    pub role:  String,
+    pub perms: Vec<String>,
 }
 
 

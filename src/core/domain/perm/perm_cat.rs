@@ -1,11 +1,21 @@
-pub const CREATE_USER: u32 = 20;
-pub const UPDATE_USER: u32 = 21;
-pub const DELETE_USER: u32 = 22;
-pub const READ_USER: u32 = 23;
-pub const READ_USERS: u32 = 24;
-pub const READ_MY_USER: u32 = 25;
+pub const CREATE_USER_GLOBAL: &str = "user:create:global";
+pub const CREATE_USER_AGENCY: &str = "user:create:agency";
+pub const CREATE_USER_TENANT: &str = "user:create:tenant";
+pub const CREATE_USER_CLIENT: &str = "user:create:client";
 
-pub const CREATE_USERS_AGENCIES: u32 = 7;
-pub const CREATE_USERS_TENANTS: u32 = 16;
+pub const UPDATE_USER_AGENCY: &str = "user:update:agency";
+pub const UPDATE_USER_TENANT: &str = "user:update:tenant";
+pub const UPDATE_USER_CLIENT: &str = "user:update:client";
+
+pub const DELETE_USER_AGENCY: &str = "user:delete:agency";
+pub const DELETE_USER_TENANT: &str = "user:delete:tenant";
+pub const DELETE_USER_CLIENT: &str = "user:delete:client";
+
+pub const READ_USER_AGENCY: &str = "user:read:agency";
+pub const READ_USER_TENANT: &str = "user:read:tenant";
+pub const READ_USER_CLIENT: &str = "user:read:client";
+pub const READ_USER_GLOBAL: &str = "user:read:global";
+pub const READ_CLIENT_GLOBAL: &str = "client:read:global";
+pub const READ_USER_ME: &str = "user:read:me";
 
 

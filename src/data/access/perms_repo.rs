@@ -1,4 +1,5 @@
 
+use std::collections::HashMap;
 use async_trait::async_trait;
 use futures_util::TryStreamExt;
 use mongodb::{bson::{doc, from_bson, Document}, Collection};
@@ -6,6 +7,7 @@ use mongodb::bson::{from_document, to_document};
 use mongodb::bson::oid::ObjectId;
 use tracing::log;
 use crate::context::Context;
+use crate::core::domain::auth::auth_type::Role;
 use crate::core::domain::perm::{perm_repo::PermRepo, perm_type::{PermsRelationship}, Perm};
 use crate::core::domain::perm::perm_error::PermError;
 use crate::utils::domains_ids::PermID;
@@ -160,11 +162,13 @@ impl PermRepo for MongoPermRepo
         let collection = context.get_collection("relationship");
         let docs: Vec<Document> = perms_relationships.into_iter()
             .map(|perms_relationship| {
-                doc! {
-                                                                 "id": perms_relationship.id,
-                                                                 "role": perms_relationship.role.to_string(),
-                                                                 "perms": perms_relationship.perms,
-                                                             }
+                to_document(&perms_relationship).unwrap_or_else(|_| {
+                    doc! {
+                        "id": perms_relationship.id,
+                        "role": perms_relationship.role as u32,
+                        "perms": perms_relationship.perms,
+                    }
+                })
             })
             .collect();
 
@@ -174,11 +178,24 @@ impl PermRepo for MongoPermRepo
         Ok(())
     }
 
-    async fn charge_permissions(&self, role_id: u32, context: &Context) -> Result<Vec<u32>, PermError>
+    async fn charge_permissions(&self, role_id: u32, context: &Context) -> Result<Vec<String>, PermError>
     {
         let collection_relationship: Collection<Document> = context.get_collection("relationship");
 
-        let filter = doc! { "id": role_id };
+        // Intentamos buscar por ID numérico o por el nombre del rol (mapeando el ID al enum)
+        let role = Role::from_id(role_id);
+        let mut filter = doc! { "role": role_id };
+        
+        if let Some(r) = role {
+            let role_name = format!("{:?}", r);
+            filter = doc! {
+                "$or": [
+                    { "role": role_id },
+                    { "role": role_name },
+                    { "id": role_id } // A veces el catálogo usa 'id' en lugar de 'role' como identificador
+                ]
+            };
+        }
 
         let result = collection_relationship.find_one(filter.clone())
             .await
@@ -187,24 +204,36 @@ impl PermRepo for MongoPermRepo
 
         if let Some(document) = result
         {
-
             if let Some(perms_bson) = document.get("perms")
             {
-
-                let perms: Vec<u32> =
+                let perms: Vec<String> =
                     from_bson(perms_bson.clone()).map_err(|_e| {
                         PermError::PermNotFound
                     })?;
 
                 return Ok(perms);
             } else {
-                log::warn!("'perm' field not found in the relationship document: {:?}", document);
+                log::warn!("'perms' field not found in the relationship document: {:?}", document);
             }
         } else {
             log::warn!("No document found with filter: {:?}", filter);
         }
 
-
         Err(PermError::PermNotFound)
+    }
+
+    async fn get_perms_map(&self, context: &Context) -> Result<HashMap<String, u32>, PermError> {
+        let coll = context.get_collection("perms");
+        let mut cursor = coll.find(doc! {}).await
+            .map_err(|_| PermError::PermNotFound)?;
+        let mut map = HashMap::new();
+        while let Some(doc) = cursor.try_next().await.map_err(|_| PermError::PermNotFound)? {
+            if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i32("id")) {
+                map.insert(name.to_string(), id as u32);
+            } else if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i64("id")) {
+                map.insert(name.to_string(), id as u32);
+            }
+        }
+        Ok(map)
     }
 }

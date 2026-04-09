@@ -14,7 +14,10 @@ use crate::{
 };
 use crate::context::Context;
 use crate::core::domain::auth::{Auth, AuthEntity};
-use crate::core::domain::perm::perm_cat::{CREATE_USER, CREATE_USERS_AGENCIES, CREATE_USERS_TENANTS, READ_USERS};
+use crate::core::domain::perm::perm_cat::{
+    CREATE_USER_AGENCY, CREATE_USER_TENANT, CREATE_USER_GLOBAL, CREATE_USER_CLIENT,
+    READ_USER_GLOBAL
+};
 use crate::core::domain::user::{User, UserEntity};
 use crate::core::domain::user::user_error::UserError;
 use crate::data::access::auth_repo::MongoAuthRepo;
@@ -81,25 +84,26 @@ impl<'a> UserOps<'a>
 
         let requester_perms = requester_claims.permissions;
         let requester_role_id = requester_claims.role_id;
-        let requester_role = Role::from_id(requester_role_id).unwrap_or(Role::Guest);
 
         // 3. Check basic permission to create users based on target role
-        let has_basic_create = requester_perms.contains(&CREATE_USER);
-        let has_agency_create = requester_perms.contains(&CREATE_USERS_AGENCIES);
-        let has_tenant_create = requester_perms.contains(&CREATE_USERS_TENANTS);
+        let has_global_create = requester_perms.iter().any(|p| p == CREATE_USER_GLOBAL);
+        let has_agency_create = requester_perms.iter().any(|p| p == CREATE_USER_AGENCY);
+        let has_tenant_create = requester_perms.iter().any(|p| p == CREATE_USER_TENANT);
+        let has_client_create = requester_perms.iter().any(|p| p == CREATE_USER_CLIENT);
 
         let is_target_agency = matches!(target_role, Role::AgencyOwner | Role::AgencyAdmin | Role::AgencyMember);
-        let is_target_tenant = matches!(target_role, Role::TenantAdmin | Role::Editor | Role::Client | Role::Guest);
+        let is_target_tenant = matches!(target_role, Role::TenantAdmin | Role::Editor);
+        let is_target_client = matches!(target_role, Role::Client | Role::Guest);
 
         // Validación contextual:
-        // - Los de Agencia se crean en la "pantalla de agencias" (requiere CREATE_USERS_AGENCIES)
-        // - Los de Tenant se crean en la "pantalla de tenant" (requiere CREATE_USERS_TENANTS)
-        let can_proceed = if has_basic_create {
+        let can_proceed = if has_global_create {
             true // SuperAdmin con permiso global puede todo (sujeto a jerarquía)
         } else if is_target_agency {
             has_agency_create
         } else if is_target_tenant {
             has_tenant_create
+        } else if is_target_client {
+            has_client_create
         } else {
             false
         };
@@ -146,7 +150,9 @@ impl<'a> UserOps<'a>
             email: user.email.clone(),
             password ,
             role_id: target_role_id,
-            permissions: perms,
+            permissions: perms.clone(),
+            granted_permissions: perms,
+            denied_permissions: Vec::new(),
         };
 
         let auth_entity = AuthEntity::new(auth, self.auth_repo).await;
@@ -182,7 +188,7 @@ impl<'a> UserOps<'a>
     pub async fn load_users(&self, req: HttpRequest) -> Result<Vec<User>, UserError>
     {
         let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
-        if !has_permission(secret, req, READ_USERS).await
+        if !has_permission(secret, req, READ_USER_GLOBAL).await
         {
             return Err(UserError::NotHasPermission);
         }

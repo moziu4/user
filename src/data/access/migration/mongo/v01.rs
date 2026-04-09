@@ -1,11 +1,15 @@
 use std::{env, fs};
+use std::collections::HashMap;
+use std::str::FromStr;
 use async_trait::async_trait;
 use bcrypt::{hash};
 use dotenv::dotenv;
+use futures_util::TryStreamExt;
 use mongodb::{error::Error as MongoError, Database};
 use mongodb::bson::{doc, to_bson, Document};
+use serde::Deserialize;
 use crate::core::domain::auth::auth_type::Role;
-use crate::core::domain::perm::perm_type::PermsRelationship;
+use crate::core::domain::perm::perm_type::{PermsRelationship, PermsRelationshipDTO};
 use crate::data::access::migration::MigrationContext;
 use crate::data::access::migration::Migration;
 
@@ -99,22 +103,44 @@ impl Migration001 {
             ))
         };
 
-        let relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content)
+        let mut relationships_dto: Vec<PermsRelationshipDTO> = serde_json::from_str(&file_content)
             .expect("Error al deserializar el JSON de relaciones");
+
+        // Cargar mapa de permisos para convertir nombres a IDs
+        let perms_map = self.get_perms_map(db).await?;
+        
         let coll = db.collection::<Document>("relationship");
 
-        for relationship in relationships {
-            let filter = doc! { "role": (relationship.role as u32) };
+        for dto in relationships_dto {
+            let role = Role::from_str(&dto.role).unwrap_or_else(|_| {
+                    // Fallback para mapeo manual
+                    match dto.role.as_str() {
+                        "SuperAdmin" => Role::SuperAdmin,
+                        "AgencyOwner" => Role::AgencyOwner,
+                        "AgencyAdmin" => Role::AgencyAdmin,
+                        "AgencyMember" => Role::AgencyMember,
+                        "TenantAdmin" => Role::TenantAdmin,
+                        "Editor" => Role::Editor,
+                        "Client" => Role::Client,
+                        "Guest" => Role::Guest,
+                        _ => panic!("Rol desconocido: {}", dto.role)
+                    }
+                });
+
+            let relationship = PermsRelationship {
+                id: dto.id,
+                role: role,
+                perms: dto.perms,
+            };
+
+            let filter = doc! { "role": relationship.role as u32 };
             let count = coll.count_documents(filter).await?;
             if count == 0 {
-                let mut bson_doc = to_bson(&relationship)
+                let bson_doc = to_bson(&relationship)
                     .expect("Error al convertir PermsRelationship a BSON")
                     .as_document()
                     .expect("Error al convertir BSON a Document")
                     .clone();
-
-                // Asegurar que el campo 'role' en el documento insertado sea el ID numérico
-                bson_doc.insert("role", relationship.role as u32);
 
                 coll.insert_one(bson_doc).await?;
             }
@@ -213,26 +239,55 @@ impl Migration001 {
 
         let role = Role::SuperAdmin;
         let relationship_coll = db.collection::<Document>("relationship");
+        
+        // Buscamos por el nombre del rol (String) o por el ID si se guardó como tal
+        // Dado que PermsRelationship usa el enum Role, serde por defecto lo serializa como el nombre de la variante.
+        let role_name = format!("{:?}", role);
+        let filter = doc! { 
+            "$or": [
+                { "role": role_name },
+                { "role": role as u32 },
+                { "id": 1 } // SuperAdmin en el catálogo externo es ID 1
+            ]
+        };
+        
         let relationship_doc = relationship_coll
-            .find_one(doc! { "role": role.to_id() })
-            .await?
-            .expect("No se encontraron permisos para el rol SuperAdmin");
-
-        let perms = relationship_doc
-            .get_array("perms")
-            .expect("No se encontró el campo `perms` en la relación")
-            .iter()
-            .map(|perm| {
-                if let Some(val) = perm.as_i32() {
-                    val as u32
-                } else if let Some(val) = perm.as_i64() {
-                    val as u32
-                } else {
-                    println!("Permiso no válido encontrado: {:?}", perm);
-                    panic!("Permiso no válido: valor fuera de rango o formato no soportado");
-                }
-            })
-            .collect::<Vec<u32>>();
+            .find_one(filter.clone())
+            .await?;
+            
+        let perms = if let Some(doc) = relationship_doc {
+             doc.get_array("perms")
+                .expect("No se encontró el campo `perms` en la relación")
+                .iter()
+                .map(|perm| {
+                    if let Some(val) = perm.as_str() {
+                        val.to_string()
+                    } else {
+                        panic!("Permiso no válido: se esperaba un string");
+                    }
+                })
+                .collect::<Vec<String>>()
+        } else {
+            // Fallback: Si no se encontró en la colección, intentar cargar del mapa local
+            // (que se construyó a partir del JSON en create_relationships)
+            let perms_map = self.get_perms_map(db).await?;
+            if perms_map.is_empty() {
+                 panic!("No se encontraron permisos para el rol SuperAdmin en la BD ni en el catálogo");
+            }
+            
+            // Aquí perms_map mapea NOMBRE_PERMISO -> ID.
+            // Pero nosotros queremos los NOMBRES de los permisos para el rol SuperAdmin.
+            // Como create_relationships ya corrió, la colección 'relationship' DEBERÍA estar poblada.
+            // Si no está, algo falló en create_relationships o el filtro es incorrecto.
+            
+            // Vamos a mostrar qué roles hay en la colección para depurar
+            let mut cursor = relationship_coll.find(doc! {}).await?;
+            while let Some(r_doc) = cursor.try_next().await? {
+                println!("Relación encontrada en BD: {:?}", r_doc);
+            }
+            
+            panic!("No se encontraron permisos para el rol SuperAdmin (Nombre: {}, ID: {})", format!("{:?}", role), role as u32);
+        };
 
         let plain_password = user_data
             .get_str("password")
@@ -245,8 +300,10 @@ impl Migration001 {
             "username": username,
             "email": email,
             "password": hashed_password,
-            "role_id": role.to_id(),
-            "permissions": perms
+            "role_id": role as u32,
+            "permissions": perms.clone(),
+            "granted_permissions": perms,
+            "denied_permissions": []
         };
         
         auth_coll
@@ -256,6 +313,48 @@ impl Migration001 {
 
         println!("Usuario administrador creado e insertado con éxito.");
         Ok(())
+    }
+
+    async fn get_perms_map(&self, db: &Database) -> Result<HashMap<String, u32>, MongoError> {
+        let coll = db.collection::<Document>("perms");
+        let mut cursor = coll.find(doc! {}).await?;
+        let mut map = HashMap::new();
+        while let Some(doc) = cursor.try_next().await? {
+            if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i32("id")) {
+                map.insert(name.to_string(), id as u32);
+            } else if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i64("id")) {
+                map.insert(name.to_string(), id as u32);
+            }
+        }
+        
+        // Si el mapa está vacío, intentar cargar desde el archivo perms.json
+        if map.is_empty() {
+             let catalogs_path = env::var("CATALOGS_PATH")
+                .unwrap_or_else(|_| "tests/fixtures".to_string());
+             
+             let perms_content = if catalogs_path.starts_with("http") {
+                 let url = format!("{}/perms.json", catalogs_path);
+                 if let Ok(r) = reqwest::get(&url).await {
+                     r.text().await.ok()
+                 } else {
+                     None
+                 }
+             } else {
+                 fs::read_to_string(format!("{}/perms.json", catalogs_path)).ok()
+             };
+
+             if let Some(content) = perms_content {
+                 #[derive(Deserialize)]
+                 struct PermItem { id: u32, name: String }
+                 if let Ok(items) = serde_json::from_str::<Vec<PermItem>>(&content) {
+                     for item in items {
+                         map.insert(item.name, item.id);
+                     }
+                 }
+             }
+        }
+
+        Ok(map)
     }
 }
 

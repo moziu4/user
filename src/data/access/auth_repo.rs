@@ -39,13 +39,16 @@ impl MongoAuthRepo {
         let insert_result = collection.insert_one(auth_doc).await?;
         if let Some(inserted_id) = insert_result.inserted_id.as_object_id()
         {
-            Ok(Auth { _id:               Some(AuthID::from_object_id(inserted_id)),
+            Ok(Auth { 
+                _id: Some(AuthID::from_object_id(inserted_id)),
                 user_id: new_auth.user_id,
                 username: new_auth.username,
                 email: new_auth.email,
                 password: new_auth.password,
                 role_id: new_auth.role_id,
                 permissions: new_auth.permissions,
+                granted_permissions: new_auth.granted_permissions,
+                denied_permissions: new_auth.denied_permissions,
             })
         }
         else

@@ -1,3 +1,5 @@
+use crate::core::domain::perm::perm_repo::PermRepo;
+use std::str::FromStr;
 use futures_util::TryFutureExt;
 use crate::core::domain::auth::auth_type::Role;
 use crate::utils::domains_ids::{TenantID, AgencyID};
@@ -16,13 +18,15 @@ pub mod auth_error;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Auth
 {
-    pub _id:         Option<AuthID>,
-    pub user_id:     UserID,
-    pub username:    String,
-    pub email:       String,
-    pub password:    String,
-    pub role_id:     u32,
-    pub permissions: Vec<u32>,
+    pub _id:                Option<AuthID>,
+    pub user_id:            UserID,
+    pub username:           String,
+    pub email:              String,
+    pub password:           String,
+    pub role_id:            u32,
+    pub permissions:        Vec<String>,
+    pub granted_permissions: Vec<String>,
+    pub denied_permissions:  Vec<String>,
 }
 
 #[derive(Clone)]
@@ -45,6 +49,8 @@ impl<'a>AuthEntity<'a>
             password: new_auth.password,
             role_id: new_auth.role_id,
             permissions: new_auth.permissions,
+            granted_permissions: new_auth.granted_permissions,
+            denied_permissions: new_auth.denied_permissions,
         }}
     }
     
@@ -63,9 +69,14 @@ impl<'a>AuthEntity<'a>
         self.props.role_id = role_id;
     }
         
-    pub async fn update_permissions(&mut self, permissions: Vec<u32>)
+    pub async fn update_granted_permissions(&mut self, permissions: Vec<String>)
     {
-        self.props.permissions = permissions;
+        self.props.granted_permissions = permissions;
+    }
+
+    pub async fn update_denied_permissions(&mut self, permissions: Vec<String>)
+    {
+        self.props.denied_permissions = permissions;
     }
     pub async fn save(self) -> Result<Auth, auth_error::AuthError>
     {
@@ -73,12 +84,21 @@ impl<'a>AuthEntity<'a>
         self.repo.save(self.props).await
     }
 
-    pub async fn login_contextual(&self, user_repo: &MongoUserRepo, tenant_id: Option<TenantID>, agency_id: Option<AgencyID>) -> Result<perms::Auth, AuthError> {
-        let role = Role::from_id(self.props.role_id).unwrap_or(Role::Guest);
+    pub async fn login_contextual(&self, user_repo: &MongoUserRepo, perm_repo: &impl PermRepo, tenant_id: Option<TenantID>, agency_id: Option<AgencyID>, context: &crate::context::Context) -> Result<perms::Auth, AuthError> {
+        let role_id = self.props.role_id;
         
         // Si es SuperAdmin, ignoramos el contexto y devolvemos todos los permisos
-        if role == Role::SuperAdmin {
-            return Ok(self.props.clone().into());
+        if role_id == Role::SuperAdmin as u32 {
+            let mut auth: perms::token::Auth = perms::token::Auth {
+                _id: Some(self.props._id.clone().expect("Auth should have an ID at login")),
+                user_id: self.props.user_id.clone(),
+                username: self.props.username.clone(),
+                email: self.props.email.clone(),
+                password: self.props.password.clone(),
+                roles: Role::SuperAdmin,
+                permissions: self.props.permissions.clone(),
+            };
+            return Ok(auth); 
         }
 
         // Si no es SuperAdmin, buscamos la membresía para obtener el rol contextual
@@ -101,9 +121,22 @@ impl<'a>AuthEntity<'a>
 
         let final_role_id = contextual_role_id.unwrap_or(self.props.role_id);
         
-        // Aquí podrías recargar los permisos basados en el final_role_id si fuera necesario
-        // Por ahora, asumimos que Auth ya tiene los permisos básicos o los que corresponden al rol principal
+        // Cargar permisos base del rol (Strings)
+        let base_perms = perm_repo.charge_permissions(final_role_id, context).await
+            .unwrap_or_else(|_| Vec::new());
         
+        let mut final_perms_set: std::collections::HashSet<String> = base_perms.into_iter()
+            .collect();
+        
+        // Si no estamos en un contexto específico (o incluso si lo estamos, según requerimiento)
+        // aplicamos las excepciones del usuario.
+        final_perms_set.extend(self.props.granted_permissions.iter().cloned());
+        for p in &self.props.denied_permissions {
+            final_perms_set.remove(p);
+        }
+
+        let final_perms: Vec<String> = final_perms_set.into_iter().collect();
+
         Ok(perms::token::Auth {
             _id: Some(self.props._id.clone().expect("Auth should have an ID at login")),
             user_id: self.props.user_id.clone(),
@@ -111,7 +144,7 @@ impl<'a>AuthEntity<'a>
             email: self.props.email.clone(),
             password: self.props.password.clone(),
             roles: Role::from_id(final_role_id).unwrap_or(Role::Guest),
-            permissions: self.props.permissions.clone(),
+            permissions: final_perms,
         })
     }
 }

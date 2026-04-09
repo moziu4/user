@@ -4,6 +4,8 @@ use perms::Token;
 use crate::{
     core::domain::auth::{auth_type::AuthLogin},
     data::access::user_repo::MongoUserRepo,
+    data::access::perms_repo::MongoPermRepo,
+    context::Context,
 };
 use crate::core::domain::auth::{Auth, AuthEntity};
 use crate::core::domain::auth::auth_error::AuthError;
@@ -13,11 +15,16 @@ pub struct AuthOps<'a>
 {
     repo: &'a MongoAuthRepo,
     user_repo: &'a MongoUserRepo,
+    perm_repo: &'a MongoPermRepo,
+    context: &'a Context,
 }
 
 impl<'a> AuthOps<'a>
 {
-    pub fn new(repo: &'a MongoAuthRepo, user_repo: &'a MongoUserRepo) -> Self  {Self {repo, user_repo}}
+    pub fn new(repo: &'a MongoAuthRepo, user_repo: &'a MongoUserRepo, perm_repo: &'a MongoPermRepo, context: &'a Context) -> Self
+    {
+        Self {repo, user_repo, perm_repo, context}
+    }
     
     pub async fn create_auth(&self, auth: Auth) -> Result<Auth, AuthError>
     {
@@ -44,7 +51,7 @@ impl<'a> AuthOps<'a>
         }
         
         let auth_entity = AuthEntity::new(auth.clone(), self.repo).await;
-        let auth_perms = auth_entity.login_contextual(self.user_repo, auth_login.tenant_id, auth_login.agency_id).await?;
+        let auth_perms = auth_entity.login_contextual(self.user_repo, self.perm_repo, auth_login.tenant_id, auth_login.agency_id, self.context).await?;
 
         let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
         let token = Token::new(secret, auth_perms).map_err(|_| AuthError::PermLibError)?;

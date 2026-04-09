@@ -5,7 +5,7 @@ use futures_util::TryStreamExt;
 use mongodb::bson::{doc, to_bson, Document};
 use mongodb::{Client};
 use crate::core::domain::auth::auth_type::Role;
-use crate::core::domain::perm::perm_type::{PermsRelationship, DocumentType, RoleInfo};
+use crate::core::domain::perm::perm_type::{PermsRelationship, DocumentType, RoleInfo, PermsRelationshipDTO};
 use std::path::Path;
 use crate::error::{ServiceError, ServiceResult};
 
@@ -200,29 +200,39 @@ impl MongoCatalogRepo{
             })?
         };
 
-        let mut relationships: Vec<PermsRelationship> = serde_json::from_str(&file_content)
+        let mut perms_relationships_dto: Vec<PermsRelationshipDTO> = serde_json::from_str(&file_content)
             .map_err(|e| ServiceError::CatalogFileError(format!("Error al parsear el JSON de relaciones: {}", e)))?;
 
-        // Convert `Vec<u64>` to `Vec<u32>` during iteration
-        for relationship in relationships.iter_mut() {
-            let mut perms_u32 = Vec::new();
-            for p in &relationship.perms {
-                perms_u32.push((*p).try_into().map_err(|_| {
-                    ServiceError::CatalogFileError(format!("Error: No se pudo convertir {} a u32", p))
-                })?);
-            }
-            relationship.perms = perms_u32;
-        }
+        // Cargar mapa de permisos para convertir nombres a IDs
+        let perms_map = self.get_perms_map(&db).await?;
 
-        for relationship in relationships {
-            let mut bson_doc = to_bson(&relationship)
+        for dto in perms_relationships_dto {
+            let role = match dto.role.as_str() {
+                "SuperAdmin" => Role::SuperAdmin,
+                "AgencyOwner" => Role::AgencyOwner,
+                "AgencyAdmin" => Role::AgencyAdmin,
+                "AgencyMember" => Role::AgencyMember,
+                "TenantAdmin" => Role::TenantAdmin,
+                "Editor" => Role::Editor,
+                "Client" => Role::Client,
+                "Guest" => Role::Guest,
+                _ => {
+                   // Intentar usar FromStr si está disponible
+                   dto.role.parse::<Role>().unwrap_or(Role::Guest)
+                }
+            };
+
+            let relationship = PermsRelationship {
+                id: dto.id,
+                role: role,
+                perms: dto.perms,
+            };
+
+            let bson_doc = to_bson(&relationship)
                 .map_err(|e| ServiceError::CatalogFileError(format!("Error al convertir PermsRelationship a BSON: {}", e)))?
                 .as_document()
                 .ok_or_else(|| ServiceError::CatalogFileError("Error al convertir BSON a Documento".to_string()))?
                 .clone();
-
-            // Asegurar que el campo 'role' sea el ID numérico
-            bson_doc.insert("role", relationship.role as u32);
 
             coll.insert_one(bson_doc).await
                 .map_err(|e| ServiceError::CatalogFileError(format!("Error al insertar el documento de relación en MongoDB: {}", e)))?;
@@ -372,8 +382,9 @@ impl MongoCatalogRepo{
             .map_err(|_| ServiceError::RelationalDocumentNotFound)?
         {
             
-            let role = relational_doc.get_str("role")
-                .map(|r| r.to_string()) 
+            let role_id = relational_doc.get_i32("role")
+                .map(|r| r as u32) 
+                .or_else(|_| relational_doc.get_i64("role").map(|r| r as u32))
                 .map_err(|_| ServiceError::RelationalDeserializeError)?;
 
             let permissions = relational_doc.get_array("perms")
@@ -384,12 +395,15 @@ impl MongoCatalogRepo{
                         Some(value) => value.try_into().unwrap_or_else(|_| {
                             panic!("Error: No se pudo convertir {} a u32", value)
                         }),
-                        None => panic!("Error: Permiso no era un Int64"),
+                        None => match p.as_i32() {
+                            Some(value) => value as u32,
+                            None => panic!("Error: Permiso no era un número"),
+                        }
                     }
                 })
                 .collect::<Vec<u32>>();
             
-            let role_enum: Role = role.parse().unwrap();
+            let role_enum: Role = Role::from_id(role_id).unwrap_or(Role::Guest);
             relationship_map
                 .entry(role_enum)
                 .or_insert_with(Vec::new)
@@ -399,5 +413,19 @@ impl MongoCatalogRepo{
         Ok(relationship_map)
     }
 
-
+    async fn get_perms_map(&self, db: &mongodb::Database) -> ServiceResult<HashMap<String, u32>> {
+        let coll = db.collection::<Document>("perms");
+        let mut cursor = coll.find(doc! {}).await
+            .map_err(|e| ServiceError::CatalogFileError(format!("Error al buscar permisos: {}", e)))?;
+        let mut map = HashMap::new();
+        while let Some(doc) = cursor.try_next().await
+            .map_err(|e| ServiceError::CatalogFileError(format!("Error al iterar permisos: {}", e)))? {
+            if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i32("id")) {
+                map.insert(name.to_string(), id as u32);
+            } else if let (Ok(name), Ok(id)) = (doc.get_str("name"), doc.get_i64("id")) {
+                map.insert(name.to_string(), id as u32);
+            }
+        }
+        Ok(map)
+    }
 }
