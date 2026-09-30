@@ -6,7 +6,7 @@ use perms::UserID;
 use crate::core::domain::user::{user_repo::UserRepo, User};
 use crate::core::domain::membership::Membership;
 use crate::core::domain::user::user_type::{Phone, Address};
-use crate::utils::domains_ids::{MembershipID, PhoneID, AddressID, TenantID, AgencyID};
+use crate::utils::domains_ids::{MembershipID, PhoneID, AddressID, TenantID, OrganizationID};
 use crate::core::domain::user::user_error::UserError;
 
 
@@ -224,7 +224,7 @@ impl MongoUserRepo
         Ok(())
     }
 
-    pub async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: AgencyID) -> Result<(), UserError> {
+    pub async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: OrganizationID) -> Result<(), UserError> {
         let filter = doc! { "user_id": ObjectId::from(user_id), "agencies.agency_id": ObjectId::from(agency_id) };
         let update = doc! { "$set": { "agencies.$.status": "Inactive" } };
         let result = self.memberships_coll.update_one(filter, update).await?;
@@ -248,13 +248,22 @@ impl MongoUserRepo
         let mut total_active_memberships = 0;
 
         for m in &memberships {
-            total_active_memberships += m.tenants.iter().filter(|t| t.status == crate::core::domain::membership::MembershipStatus::Active && t.tenant_id != tenant_id).count();
-            total_active_memberships += m.agencies.iter().filter(|a| a.status == crate::core::domain::membership::MembershipStatus::Active).count();
+            if m.status == crate::core::domain::membership::MembershipStatus::Active {
+                match &m.target {
+                    crate::core::domain::membership::MembershipTarget::Tenant(t) if *t != tenant_id => {
+                        total_active_memberships += 1;
+                    }
+                    crate::core::domain::membership::MembershipTarget::Organization(_) => {
+                        total_active_memberships += 1;
+                    }
+                    _ => {}
+                }
+            }
         }
 
         // 4. Actualizar o eliminar la membresía del tenant
-        let filter = doc! { "user_id": ObjectId::from(user_id.clone()) };
-        let update = doc! { "$pull": { "tenants": { "tenant_id": ObjectId::from(tenant_id) } } };
+        let filter = doc! { "user_id": ObjectId::from(user_id.clone()), "target.Tenant": ObjectId::from(tenant_id) };
+        let update = doc! { "$set": { "status": "Inactive" } };
         self.memberships_coll.update_one(filter, update).await?;
 
         // 5. Si no quedan más membresías activas, anonimizar el User globalmente
@@ -339,7 +348,7 @@ impl UserRepo for MongoUserRepo
     async fn deactivate_tenant_membership(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError> {
         self.deactivate_tenant_membership(user_id, tenant_id).await
     }
-    async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: AgencyID) -> Result<(), UserError> {
+    async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: OrganizationID) -> Result<(), UserError> {
         self.deactivate_agency_membership(user_id, agency_id).await
     }
     async fn anonymize_user_in_tenant(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError> {

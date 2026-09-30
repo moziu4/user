@@ -66,8 +66,15 @@ impl<'a> UserOps<'a>
         let _secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
 
         // 1. Determine target role
-        let target_role_id = new_user.role_id.unwrap_or(Role::Client as u32);
-        let target_role = Role::from_id(target_role_id).unwrap_or(Role::Client);
+        let membership = new_user.membership
+            .as_ref()
+            .ok_or(UserError::InvalidMembership)?;
+
+        let target_role_id = membership.role_id
+            .unwrap_or(Role::Client as u32);
+
+        let target_role = Role::from_id(target_role_id)
+            .unwrap_or(Role::Client);
 
         // 2. Extract requester info (permissions and role)
         // Manual extraction for now as we don't have the function in perms
@@ -160,16 +167,25 @@ impl<'a> UserOps<'a>
             .await
             .map_err(|_| UserError::AuthError)?;
 
-        // 7. Create Membership if agency_id or tenant_id is provided
-        if new_user.agency_id.is_some() || new_user.tenant_id.is_some() {
-            let mut membership = Membership::new(user_id.clone());
-            if let Some(agency_id) = new_user.agency_id {
-                membership.add_agency(agency_id, target_role_id);
+        // 7. Create Membership if organization_id or tenant_id is provided
+        if membership.organization_id.is_some() || membership.tenant_id.is_some() {
+            if let Some(agency_id) = &membership.organization_id {
+                let membership_entity = Membership::new_organization(
+                    user_id.clone(),
+                    agency_id.clone(),
+                    target_role_id
+                );
+                self.repo.create_membership(membership_entity).await?;
             }
-            if let Some(tenant_id) = new_user.tenant_id {
-                membership.add_tenant(tenant_id, target_role_id);
+
+            if let Some(tenant_id) = &membership.tenant_id {
+                let membership_entity = Membership::new_tenant(
+                    user_id.clone(),
+                    tenant_id.clone(),
+                    target_role_id
+                );
+                self.repo.create_membership(membership_entity).await?;
             }
-            self.repo.create_membership(membership).await?;
         }
 
         // 8. Publish NATS event

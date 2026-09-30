@@ -2,7 +2,7 @@ use crate::core::domain::perm::perm_repo::PermRepo;
 use std::str::FromStr;
 use futures_util::TryFutureExt;
 use crate::core::domain::auth::auth_type::Role;
-use crate::utils::domains_ids::{TenantID, AgencyID};
+use crate::utils::domains_ids::{TenantID, OrganizationID};
 use perms::{AuthID, UserID};
 use serde::{Deserialize, Serialize};
 use crate::core::domain::auth::auth_error::AuthError;
@@ -84,7 +84,7 @@ impl<'a>AuthEntity<'a>
         self.repo.save(self.props).await
     }
 
-    pub async fn login_contextual(&self, user_repo: &MongoUserRepo, perm_repo: &impl PermRepo, tenant_id: Option<TenantID>, agency_id: Option<AgencyID>, context: &crate::context::Context) -> Result<perms::Auth, AuthError> {
+    pub async fn login_contextual(&self, user_repo: &MongoUserRepo, perm_repo: &impl PermRepo, tenant_id: Option<TenantID>, agency_id: Option<OrganizationID>, context: &crate::context::Context) -> Result<perms::Auth, AuthError> {
         let role_id = self.props.role_id;
         
         // Si es SuperAdmin, ignoramos el contexto y devolvemos todos los permisos
@@ -104,17 +104,15 @@ impl<'a>AuthEntity<'a>
         // Si no es SuperAdmin, buscamos la membresía para obtener el rol contextual
         let memberships = user_repo.fetch_memberships_by_user(self.props.user_id.clone())
             .map_err(|_| AuthError::MembershipNotFound).await?;
-        
-        let membership = memberships.first().ok_or(AuthError::MembershipNotFound)?;
 
         let contextual_role_id = if let Some(t_id) = tenant_id {
-            membership.tenants.iter()
-                .find(|t| t.tenant_id == t_id)
-                .map(|t| t.role_id)
+            memberships.iter()
+                .find(|m| matches!(&m.target, crate::core::domain::membership::MembershipTarget::Tenant(id) if *id == t_id))
+                .map(|m| m.role_id)
         } else if let Some(a_id) = agency_id {
-            membership.agencies.iter()
-                .find(|a| a.agency_id == a_id)
-                .map(|a| a.role_id)
+            memberships.iter()
+                .find(|m| matches!(&m.target, crate::core::domain::membership::MembershipTarget::Organization(id) if *id == a_id))
+                .map(|m| m.role_id)
         } else {
             None
         };

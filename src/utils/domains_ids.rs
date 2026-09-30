@@ -53,8 +53,8 @@ macro_rules! implement_id {
 implement_id!(PermID);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct AgencyID(ObjectId);
-implement_id!(AgencyID);
+pub struct OrganizationID(ObjectId);
+implement_id!(OrganizationID);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct TenantID(ObjectId);
@@ -92,7 +92,7 @@ macro_rules! implement_display {
     };
 }
 
-implement_display!(AgencyID);
+implement_display!(OrganizationID);
 implement_display!(TenantID);
 implement_display!(MembershipID);
 implement_display!(PhoneID);

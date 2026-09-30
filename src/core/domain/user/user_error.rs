@@ -56,4 +56,7 @@ pub enum UserError {
 
     #[error("Insufficient privileges for this role")]
     InsufficientPrivileges,
+    
+    #[error("Insufficient privileges for this role")]
+    InvalidMembership,
 }

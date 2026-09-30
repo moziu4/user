@@ -1,7 +1,8 @@
 pub mod mongo;
 pub mod migrator;
-use mongodb::Client;
+
 use mongodb::error::Error as MongoError;
+use mongodb::Client;
 
 pub struct MigrationContext {
     pub client: Client,

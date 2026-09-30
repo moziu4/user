@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 use crate::core::domain::membership::Membership;
 use crate::core::domain::user::user_type::{Phone, Address};
-use crate::utils::domains_ids::{TenantID, AgencyID};
+use crate::utils::domains_ids::{TenantID, OrganizationID};
 use crate::core::domain::user::user_error::UserError;
 use crate::core::domain::user::User;
 use perms::UserID;
@@ -26,6 +26,6 @@ pub trait UserRepo
     async fn create_address(&self, address: Address) -> Result<Address, UserError>;
 
     async fn deactivate_tenant_membership(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError>;
-    async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: AgencyID) -> Result<(), UserError>;
+    async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: OrganizationID) -> Result<(), UserError>;
     async fn anonymize_user_in_tenant(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError>;
 }

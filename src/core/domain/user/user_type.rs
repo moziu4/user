@@ -1,6 +1,6 @@
 use crate::core::domain::auth::auth_type::Role;
 use serde::{Deserialize, Serialize};
-use crate::utils::domains_ids::{PhoneID, AddressID, TenantID, AgencyID};
+use crate::utils::domains_ids::{PhoneID, AddressID, TenantID, OrganizationID};
 use perms::UserID;
 use mongodb::bson::oid::ObjectId;
 
@@ -13,9 +13,22 @@ pub struct NewUser
     pub name:     String,
     pub surname_1: Option<String>,
     pub surname_2: Option<String>,
+    pub membership: Option<Membership>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Membership {
     pub role_id:   Option<u32>,
-    pub agency_id: Option<AgencyID>,
+    pub organization_id: Option<OrganizationID>,
     pub tenant_id: Option<TenantID>,
+    pub status:    MembershipStatus,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum MembershipStatus {
+    Active,
+    Inactive,
+    Unverified,
 }
 
 #[derive(Debug, Deserialize)]
