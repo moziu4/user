@@ -11,6 +11,8 @@ use perms::UserID;
 pub enum MembershipStatus {
     Active,
     Inactive,
+    Pending,
+    Unverified,
     Suspended,
 }
 
@@ -31,22 +33,30 @@ pub struct Membership {
 
 impl Membership {
     pub fn new_tenant(user_id: UserID, tenant_id: TenantID, role_id: u32) -> Self {
+        Self::new_tenant_with_status(user_id, tenant_id, role_id, MembershipStatus::Active)
+    }
+
+    pub fn new_tenant_with_status(user_id: UserID, tenant_id: TenantID, role_id: u32, status: MembershipStatus) -> Self {
         Self {
             _id: None,
             user_id,
             target: MembershipTarget::Tenant(tenant_id),
             role_id,
-            status: MembershipStatus::Active,
+            status,
         }
     }
 
     pub fn new_organization(user_id: UserID, organization_id: OrganizationID, role_id: u32) -> Self {
+        Self::new_organization_with_status(user_id, organization_id, role_id, MembershipStatus::Active)
+    }
+
+    pub fn new_organization_with_status(user_id: UserID, organization_id: OrganizationID, role_id: u32, status: MembershipStatus) -> Self {
         Self {
             _id: None,
             user_id,
             target: MembershipTarget::Organization(organization_id),
             role_id,
-            status: MembershipStatus::Active,
+            status,
         }
     }
 }

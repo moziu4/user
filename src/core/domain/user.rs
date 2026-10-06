@@ -17,6 +17,8 @@ pub mod user_error;
 pub enum Status {
     Active,
     Inactive,
+    Pending,
+    Unverified,
     Suspended,
     Deleted,
     Anonymized,
@@ -49,6 +51,11 @@ impl <'a> UserEntity<'a>
 {
    pub async fn new(new_user: NewUser, repo: &'a MongoUserRepo ) -> Self
    {
+       Self::new_with_status(new_user, Status::Active, repo).await
+   }
+
+   pub async fn new_with_status(new_user: NewUser, status: Status, repo: &'a MongoUserRepo) -> Self
+   {
        Self {
            repo,
            props: User {
@@ -59,7 +66,7 @@ impl <'a> UserEntity<'a>
                surname_1:     new_user.surname_1,
                surname_2:     new_user.surname_2,
                documents:     Vec::new(),
-               status:        Status::Active,
+               status,
                deleted_at:    None,
                anonymized_at: None,
                gpd_erased:    false,

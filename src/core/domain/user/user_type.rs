@@ -28,7 +28,9 @@ pub struct Membership {
 pub enum MembershipStatus {
     Active,
     Inactive,
+    Pending,
     Unverified,
+    Suspended,
 }
 
 #[derive(Debug, Deserialize)]

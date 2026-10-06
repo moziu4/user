@@ -50,6 +50,8 @@ impl<'a> MembershipOps<'a> {
                 let status_str = match status {
                     MembershipStatus::Active => "Active",
                     MembershipStatus::Inactive => "Inactive",
+                    MembershipStatus::Pending => "Pending",
+                    MembershipStatus::Unverified => "Unverified",
                     MembershipStatus::Suspended => "Suspended",
                 };
                 self.repo.update_status(self.context, id, status_str).await?;

@@ -2,14 +2,16 @@ use std::env;
 use actix_web::HttpRequest;
 use bcrypt::{hash};
 use perms::{has_permission, UserID};
+use uuid::Uuid;
 use crate::{
     core::domain::{
         auth::auth_type::Role,
         perm::{perm_repo::PermRepo},
         user::{
+            Status,
             user_type::{NewUser},
         },
-        membership::Membership,
+        membership::{Membership, MembershipStatus},
     },
 };
 use crate::context::Context;
@@ -23,6 +25,8 @@ use crate::core::domain::user::user_error::UserError;
 use crate::data::access::auth_repo::MongoAuthRepo;
 use crate::data::access::perms_repo::MongoPermRepo;
 use crate::data::access::user_repo::MongoUserRepo;
+use crate::data::proxy::tenant::RegistrationType;
+use crate::handlers::message::nats_service::{VerificationEmailEvent, InvitationDeeplinkEvent};
 
 
 pub struct UserOps<'a>
@@ -124,7 +128,28 @@ impl<'a> UserOps<'a>
             return Err(UserError::InsufficientPrivileges);
         }
 
-        // 5. Basic user validation
+        // 5. Determine Registration Policy from Tenant (if tenant_id is provided)
+        let tenant_info = if let Some(tenant_id) = &membership.tenant_id {
+            self.context.get_tenant(&tenant_id.to_string()).await.ok()
+        } else {
+            None
+        };
+
+        let registration_type = tenant_info
+            .as_ref()
+            .map(|t| t.registration_type.clone())
+            .unwrap_or(RegistrationType::SelfService);
+
+        let (user_status, membership_status) = if membership.tenant_id.is_some() {
+            match registration_type {
+                RegistrationType::SelfService => (Status::Unverified, MembershipStatus::Unverified),
+                RegistrationType::Deplinking => (Status::Pending, MembershipStatus::Pending),
+            }
+        } else {
+            (Status::Active, MembershipStatus::Active)
+        };
+
+        // 6. Basic user validation
         if self.repo.fetch_by_email(new_user.email.clone()).await.is_ok()
         {
             return Err(UserError::EmailIsUsed)
@@ -134,7 +159,7 @@ impl<'a> UserOps<'a>
             return Err(UserError::IncorrectFormatEmail)
         }
 
-        let user_entity = UserEntity::new(new_user.clone(), self.repo).await;
+        let user_entity = UserEntity::new_with_status(new_user.clone(), user_status, self.repo).await;
         let user = user_entity.create().await?;
         let user_id = match user.clone()._id
         {
@@ -144,7 +169,7 @@ impl<'a> UserOps<'a>
 
         let password = hash(new_user.password, 10).map_err(|_err| UserError::HashPasswordError)?;
 
-        // 6. Charge permissions for the target role
+        // 7. Charge permissions for the target role
         let perms = self.perm_repo
             .charge_permissions(target_role_id, self.context)
             .await
@@ -167,35 +192,79 @@ impl<'a> UserOps<'a>
             .await
             .map_err(|_| UserError::AuthError)?;
 
-        // 7. Create Membership if organization_id or tenant_id is provided
+        // 8. Create Membership if organization_id or tenant_id is provided
         if membership.organization_id.is_some() || membership.tenant_id.is_some() {
             if let Some(agency_id) = &membership.organization_id {
-                let membership_entity = Membership::new_organization(
+                let membership_entity = Membership::new_organization_with_status(
                     user_id.clone(),
                     agency_id.clone(),
-                    target_role_id
+                    target_role_id,
+                    membership_status.clone(),
                 );
                 self.repo.create_membership(membership_entity).await?;
             }
 
             if let Some(tenant_id) = &membership.tenant_id {
-                let membership_entity = Membership::new_tenant(
+                let membership_entity = Membership::new_tenant_with_status(
                     user_id.clone(),
                     tenant_id.clone(),
-                    target_role_id
+                    target_role_id,
+                    membership_status.clone(),
                 );
                 self.repo.create_membership(membership_entity).await?;
             }
         }
 
-        // 8. Publish NATS event
+        // 9. Publish NATS events
         if let Some(nats_service) = &self.context.nats_service {
-            nats_service.publish_user_event(
-                user_id.to_string(),
-                user.username.clone(),
-                user.email.clone(),
-                "created"
-            ).await;
+            let token = Uuid::new_v4().to_string();
+
+            if membership.tenant_id.is_some() {
+                match registration_type {
+                    RegistrationType::SelfService => {
+                        let verification_event = VerificationEmailEvent {
+                            user_id: user_id.to_string(),
+                            username: user.username.clone(),
+                            email: user.email.clone(),
+                            token: token.clone(),
+                            verification_url: Some(format!("/api/users/verify?token={}&user_id={}", token, user_id)),
+                            tenant_id: membership.tenant_id.as_ref().map(|t| t.to_string()),
+                        };
+                        nats_service.publish_verification_email(&verification_event).await;
+                        nats_service.publish_user_event(
+                            user_id.to_string(),
+                            user.username.clone(),
+                            user.email.clone(),
+                            "verification.email_requested"
+                        ).await;
+                    }
+                    RegistrationType::Deplinking => {
+                        let invitation_event = InvitationDeeplinkEvent {
+                            user_id: user_id.to_string(),
+                            username: user.username.clone(),
+                            email: user.email.clone(),
+                            token: token.clone(),
+                            deeplink_url: Some(format!("/invite?token={}&user_id={}", token, user_id)),
+                            tenant_id: membership.tenant_id.as_ref().map(|t| t.to_string()),
+                            organization_id: membership.organization_id.as_ref().map(|o| o.to_string()),
+                        };
+                        nats_service.publish_invitation_deeplink(&invitation_event).await;
+                        nats_service.publish_user_event(
+                            user_id.to_string(),
+                            user.username.clone(),
+                            user.email.clone(),
+                            "invitation.deeplink_requested"
+                        ).await;
+                    }
+                }
+            } else {
+                nats_service.publish_user_event(
+                    user_id.to_string(),
+                    user.username.clone(),
+                    user.email.clone(),
+                    "created"
+                ).await;
+            }
         }
 
         Ok(user)

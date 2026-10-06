@@ -19,7 +19,7 @@ pub struct Context
     pub auth_repo:  Arc<MongoAuthRepo>,
     pub perm_repo: Arc<MongoPermRepo>,
     pub nats_service: Option<Arc<NatsService>>,
-    
+    pub http_client: reqwest::Client,
 }
 
 
@@ -38,6 +38,7 @@ impl Context
         let perm_collection = arc_client.database(&db_name).collection("perm");
 
         let nats_service = nats_client.map(|c| Arc::new(NatsService::new(c)));
+        let http_client = reqwest::Client::new();
         
         Self { client:     arc_client.clone(),
                   user_repo:  Arc::new(MongoUserRepo::new(
@@ -49,7 +50,12 @@ impl Context
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
                   perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
                   nats_service,
+                  http_client,
         }
+    }
+
+    pub async fn get_tenant(&self, tenant_id: &str) -> crate::error::ServiceResult<crate::data::proxy::tenant::Tenant> {
+        crate::data::proxy::tenant_proxy::TenantProxy::get_tenant_by_id(&self.http_client, tenant_id).await
     }
 
     pub fn get_user_repo(&self) -> Arc<MongoUserRepo>

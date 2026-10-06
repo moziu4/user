@@ -72,6 +72,10 @@ implement_id!(PhoneID);
 pub struct AddressID(ObjectId);
 implement_id!(AddressID);
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct PlanID(ObjectId);
+implement_id!(PlanID);
+
 impl std::fmt::Display for PermID
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result

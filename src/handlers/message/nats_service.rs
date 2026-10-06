@@ -1,6 +1,6 @@
 use std::env;
 use async_nats::Client;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::{info, error};
 use futures_util::StreamExt;
 use std::sync::Arc;
@@ -8,12 +8,38 @@ use crate::context::Context;
 use crate::core::operation::membership_ops::MembershipOps;
 use crate::core::domain::membership::membership_commands::MembershipCommand;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserMessage {
     pub user_id: String,
     pub username: String,
     pub email: String,
     pub event_type: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VerificationEmailEvent {
+    pub user_id: String,
+    pub username: String,
+    pub email: String,
+    pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verification_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InvitationDeeplinkEvent {
+    pub user_id: String,
+    pub username: String,
+    pub email: String,
+    pub token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deeplink_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
 }
 
 pub struct NatsService {
@@ -23,6 +49,38 @@ pub struct NatsService {
 impl NatsService {
     pub fn new(client: Client) -> Self {
         Self { client }
+    }
+
+    pub async fn publish_verification_email(&self, event: &VerificationEmailEvent) {
+        let subject = "user.verification.email_requested";
+        match serde_json::to_vec(event) {
+            Ok(payload) => {
+                if let Err(e) = self.client.publish(subject.to_string(), payload.into()).await {
+                    error!("Error publishing verification email to NATS subject {}: {:?}", subject, e);
+                } else {
+                    info!("Verification email event published to NATS subject {}", subject);
+                }
+            }
+            Err(e) => {
+                error!("Error serializing verification email event for NATS: {:?}", e);
+            }
+        }
+    }
+
+    pub async fn publish_invitation_deeplink(&self, event: &InvitationDeeplinkEvent) {
+        let subject = "user.invitation.deeplink_requested";
+        match serde_json::to_vec(event) {
+            Ok(payload) => {
+                if let Err(e) = self.client.publish(subject.to_string(), payload.into()).await {
+                    error!("Error publishing invitation deeplink to NATS subject {}: {:?}", subject, e);
+                } else {
+                    info!("Invitation deeplink event published to NATS subject {}", subject);
+                }
+            }
+            Err(e) => {
+                error!("Error serializing invitation deeplink event for NATS: {:?}", e);
+            }
+        }
     }
 
     pub async fn publish_user_event(&self, user_id: String, username: String, email: String, event_type: &str) {
