@@ -5,6 +5,7 @@ use mongodb::{Client, Collection};
 use mongodb::bson::Document;
 use crate::data::access::{
     auth_repo::MongoAuthRepo,
+    fact_repo::MongoFactRepo,
     perms_repo::MongoPermRepo,
     user_repo::MongoUserRepo,
 };
@@ -18,6 +19,7 @@ pub struct Context
     pub user_repo:  Arc<MongoUserRepo>,
     pub auth_repo:  Arc<MongoAuthRepo>,
     pub perm_repo: Arc<MongoPermRepo>,
+    pub fact_repo: Arc<MongoFactRepo>,
     pub nats_service: Option<Arc<NatsService>>,
     pub http_client: reqwest::Client,
 }
@@ -36,6 +38,7 @@ impl Context
         let address_collection = arc_client.database(&db_name).collection("addresses");
         let auth_collection = arc_client.database(&db_name).collection("auth");
         let perm_collection = arc_client.database(&db_name).collection("perm");
+        let fact_collection = arc_client.database(&db_name).collection("facts");
 
         let nats_service = nats_client.map(|c| Arc::new(NatsService::new(c)));
         let http_client = reqwest::Client::new();
@@ -49,6 +52,7 @@ impl Context
                   )),
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
                   perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
+                  fact_repo: Arc::new(MongoFactRepo::new(fact_collection)),
                   nats_service,
                   http_client,
         }
@@ -71,6 +75,11 @@ impl Context
     pub fn get_perm_repo(&self) -> Arc<MongoPermRepo>
     {
         Arc::clone(&self.perm_repo)
+    }
+
+    pub fn get_fact_repo(&self) -> Arc<MongoFactRepo>
+    {
+        Arc::clone(&self.fact_repo)
     }
 
     pub fn get_collection(&self, collection: &str) -> Collection<Document>

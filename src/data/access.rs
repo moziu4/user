@@ -3,3 +3,4 @@ pub mod perms_repo;
 pub mod user_repo;
 pub mod migration;
 pub mod membership_repo;
+pub mod fact_repo;

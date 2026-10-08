@@ -1,12 +1,17 @@
 use std::env;
 use async_nats::Client;
 use serde::{Deserialize, Serialize};
-use tracing::{info, error};
+use tracing::{info, error, warn};
 use futures_util::StreamExt;
 use std::sync::Arc;
 use crate::context::Context;
 use crate::core::operation::membership_ops::MembershipOps;
+use crate::core::operation::fact_ops::FactOps;
 use crate::core::domain::membership::membership_commands::MembershipCommand;
+use crate::core::domain::fact::{
+    fact_commands::FactEventMessage,
+    fact_type::{CreateFactDTO, UserFact},
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserMessage {
@@ -134,6 +139,101 @@ impl NatsService {
             }
             Err(e) => {
                 error!("Error serializing membership command: {:?}", e);
+            }
+        }
+    }
+
+    pub async fn publish_fact_created(&self, fact: &UserFact, event_id: Option<String>) {
+        self.publish_fact_event("user.fact.created", fact, event_id).await;
+    }
+
+    pub async fn publish_fact_updated(&self, fact: &UserFact, event_id: Option<String>) {
+        self.publish_fact_event("user.fact.updated", fact, event_id).await;
+    }
+
+    pub async fn publish_fact_revoked(&self, fact: &UserFact, event_id: Option<String>) {
+        self.publish_fact_event("user.fact.revoked", fact, event_id).await;
+    }
+
+    async fn publish_fact_event(&self, subject: &str, fact: &UserFact, event_id: Option<String>) {
+        let event_msg = FactEventMessage {
+            event_id,
+            event: subject.to_string(),
+            user_id: fact.user_id.clone(),
+            fact_type: fact.fact_type.clone(),
+            value: fact.value.clone(),
+            fact_id: fact._id.clone(),
+            status: fact.status.clone(),
+            verification: fact.verification.clone(),
+            source_service: fact.source_service.clone(),
+            source_tenant_id: fact.source_tenant_id.clone(),
+            source_case_id: fact.source_case_id.clone(),
+            evidence_reference: fact.evidence_reference.clone(),
+            valid_from: fact.valid_from,
+            valid_until: fact.valid_until,
+            timestamp: Some(chrono::Utc::now()),
+        };
+
+        match serde_json::to_vec(&event_msg) {
+            Ok(payload) => {
+                if let Err(e) = self.client.publish(subject.to_string(), payload.into()).await {
+                    error!("Error publishing fact event to NATS subject {}: {:?}", subject, e);
+                } else {
+                    info!("Fact event published to NATS subject {}", subject);
+                }
+            }
+            Err(e) => {
+                error!("Error serializing fact event for NATS: {:?}", e);
+            }
+        }
+    }
+
+    pub async fn subscribe_fact_events(client: Client, context: Arc<Context>) {
+        let subject = "user.fact.>";
+        match client.subscribe(subject).await {
+            Ok(mut subscriber) => {
+                info!("Subscribed to NATS subject: {}", subject);
+                while let Some(msg) = subscriber.next().await {
+                    info!("Received NATS fact event on subject: {}", msg.subject);
+                    let ops = FactOps::new(&context);
+
+                    // Try deserializing as FactEventMessage first
+                    if let Ok(event) = serde_json::from_slice::<FactEventMessage>(&msg.payload) {
+                        info!("Parsed FactEventMessage: {:?}", event);
+                        let event_id = event.event_id.clone();
+                        let dto = CreateFactDTO {
+                            user_id: event.user_id,
+                            fact_type: event.fact_type,
+                            value: event.value,
+                            status: event.status,
+                            verification: event.verification,
+                            source_service: event.source_service,
+                            source_tenant_id: event.source_tenant_id,
+                            source_case_id: event.source_case_id,
+                            evidence_reference: event.evidence_reference,
+                            valid_from: event.valid_from,
+                            valid_until: event.valid_until,
+                        };
+
+                        if msg.subject.ends_with(".created") || event.event == "user.fact.created" {
+                            let _ = ops.create_fact(dto, event_id).await;
+                        } else if msg.subject.ends_with(".revoked") || event.event == "user.fact.revoked" {
+                            if let Some(fid) = event.fact_id {
+                                let _ = ops.revoke_fact(&fid, event_id).await;
+                            }
+                        } else {
+                            let _ = ops.create_fact(dto, event_id).await;
+                        }
+                    } else if let Ok(dto) = serde_json::from_slice::<CreateFactDTO>(&msg.payload) {
+                        info!("Parsed CreateFactDTO from NATS: {:?}", dto);
+                        let _ = ops.create_fact(dto, None).await;
+                    } else {
+                        warn!("Could not deserialize NATS fact message payload on {}", msg.subject);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("Failed to subscribe to NATS subject {}: {:?}", subject, e);
             }
         }
     }

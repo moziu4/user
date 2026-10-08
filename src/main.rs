@@ -36,8 +36,13 @@ async fn main() -> io::Result<()>
     let nats_client_for_subscription = nats_client.clone();
     let context_for_sub = context.clone();
     if let Some(nats_c) = nats_client_for_subscription {
+        let nats_c_facts = nats_c.clone();
+        let context_for_facts = context_for_sub.clone();
         actix_web::rt::spawn(async move {
             user::handlers::message::nats_service::NatsService::subscribe_membership_events(nats_c, context_for_sub).await;
+        });
+        actix_web::rt::spawn(async move {
+            user::handlers::message::nats_service::NatsService::subscribe_fact_events(nats_c_facts, context_for_facts).await;
         });
     }
 
@@ -63,6 +68,7 @@ async fn main() -> io::Result<()>
             .configure(http::auth::auth_routes::config)
             .configure(http::catalogs::catalog_routes::config)
             .configure(http::membership::membership_routes::config)
+            .configure(http::internal::internal_routes::config)
     }).bind(env::var("HTTP_BIND").unwrap().to_string())?
         .run()
         .await

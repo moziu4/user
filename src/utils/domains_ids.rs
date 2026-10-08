@@ -73,6 +73,10 @@ pub struct AddressID(ObjectId);
 implement_id!(AddressID);
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct FactID(ObjectId);
+implement_id!(FactID);
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct PlanID(ObjectId);
 implement_id!(PlanID);
 
@@ -101,3 +105,4 @@ implement_display!(TenantID);
 implement_display!(MembershipID);
 implement_display!(PhoneID);
 implement_display!(AddressID);
+implement_display!(FactID);
