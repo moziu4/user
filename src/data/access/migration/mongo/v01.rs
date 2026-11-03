@@ -116,6 +116,9 @@ impl Migration001 {
                     // Fallback para mapeo manual
                     match dto.role.as_str() {
                         "SuperAdmin" => Role::SuperAdmin,
+                        "OrganizationOwner" => Role::AgencyOwner,
+                        "OrganizationAdmin" => Role::AgencyAdmin,
+                        "OrganizationMember" => Role::AgencyMember,
                         "AgencyOwner" => Role::AgencyOwner,
                         "AgencyAdmin" => Role::AgencyAdmin,
                         "AgencyMember" => Role::AgencyMember,
