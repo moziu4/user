@@ -17,7 +17,7 @@ use crate::{
 use crate::context::Context;
 use crate::core::domain::auth::{Auth, AuthEntity};
 use crate::core::domain::perm::perm_cat::{
-    CREATE_USER_AGENCY, CREATE_USER_TENANT, CREATE_USER_GLOBAL, CREATE_USER_CLIENT,
+    CREATE_USER_ORGANIZATION, CREATE_USER_TENANT, CREATE_USER_GLOBAL, CREATE_USER_CLIENT,
     READ_USER_GLOBAL
 };
 use crate::core::domain::user::{User, UserEntity};
@@ -55,11 +55,11 @@ impl<'a> UserOps<'a>
 
         // Un usuario NO puede crear a otro con su mismo rol o superior.
         // La jerarquía en `Role` es (de mayor a menor):
-        // SuperAdmin, AgencyOwner, AgencyAdmin, AgencyMember, TenantAdmin, Editor, Client, Guest.
+        // SuperAdmin, OrganizationOwner, OrganizationAdmin, OrganizationMember, TenantAdmin, Editor, Client, Guest.
 
         // En Rust, si el enum deriva `PartialOrd`, el orden es el de declaración.
         // Role ya deriva `PartialOrd`, por lo que podemos comparar directamente.
-        // SuperAdmin (0) < AgencyOwner (1) < ... < Guest (7)
+        // SuperAdmin (0) < OrganizationOwner (1) < ... < Guest (7)
         // Por tanto, si queremos que el CREADOR tenga MAYOR rango, su valor numérico debe ser MENOR.
         
         requester_role < target_role
@@ -98,19 +98,19 @@ impl<'a> UserOps<'a>
 
         // 3. Check basic permission to create users based on target role
         let has_global_create = requester_perms.iter().any(|p| p == CREATE_USER_GLOBAL);
-        let has_agency_create = requester_perms.iter().any(|p| p == CREATE_USER_AGENCY);
+        let has_organization_create = requester_perms.iter().any(|p| p == CREATE_USER_ORGANIZATION);
         let has_tenant_create = requester_perms.iter().any(|p| p == CREATE_USER_TENANT);
         let has_client_create = requester_perms.iter().any(|p| p == CREATE_USER_CLIENT);
 
-        let is_target_agency = matches!(target_role, Role::AgencyOwner | Role::AgencyAdmin | Role::AgencyMember);
+        let is_target_organization = matches!(target_role, Role::AgencyOwner | Role::AgencyAdmin | Role::AgencyMember);
         let is_target_tenant = matches!(target_role, Role::TenantAdmin | Role::Editor);
         let is_target_client = matches!(target_role, Role::Client | Role::Guest);
 
         // Validación contextual:
         let can_proceed = if has_global_create {
             true // SuperAdmin con permiso global puede todo (sujeto a jerarquía)
-        } else if is_target_agency {
-            has_agency_create
+        } else if is_target_organization {
+            has_organization_create
         } else if is_target_tenant {
             has_tenant_create
         } else if is_target_client {
@@ -194,10 +194,10 @@ impl<'a> UserOps<'a>
 
         // 8. Create Membership if organization_id or tenant_id is provided
         if membership.organization_id.is_some() || membership.tenant_id.is_some() {
-            if let Some(agency_id) = &membership.organization_id {
+            if let Some(organization_id) = &membership.organization_id {
                 let membership_entity = Membership::new_organization_with_status(
                     user_id.clone(),
-                    agency_id.clone(),
+                    organization_id.clone(),
                     target_role_id,
                     membership_status.clone(),
                 );

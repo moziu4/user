@@ -9,7 +9,7 @@ pub struct AuthLogin
     pub username:  String,
     pub password:  String,
     pub tenant_id: Option<TenantID>,
-    pub agency_id: Option<OrganizationID>,
+    pub organization_id: Option<OrganizationID>,
 }
 
 pub use perms::Claims;

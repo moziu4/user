@@ -7,7 +7,6 @@ SERVICE_NAME="user"  # nombre del servicio / repositorio
 
 VER="v$(date +%Y%m%d)"
 tag="$DOCKER_USER/$SERVICE_NAME:$VER"
-latest_tag="$DOCKER_USER/$SERVICE_NAME:latest"
 
 {
   printf "Tag:  %s\n" "$tag"
@@ -30,18 +29,16 @@ time DOCKER_BUILDKIT=1 docker build --pull \
   --secret id=CARGO_CONFIG,src="$HOME"/.cargo/config.toml \
   --secret id=CARGO_CREDEN,src="$HOME"/.cargo/credentials.toml \
   -t "$tag" \
-  -t "$latest_tag" \
   .
 
 rm .version
-printf '\n\n> Built image:  %s (and %s)\n\n' "$tag" "$latest_tag"
+printf '\n\n> Built image:  %s\n\n' "$tag"
 
 select action in push rebuild exit; do
   case $action in
 
   "push")
   docker push "$tag"
-  docker push "$latest_tag"
   break
   ;;
 

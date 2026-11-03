@@ -1,11 +1,11 @@
 [
-  { "id": 1, "name": "create-agency", "description": "Permission to create a new agency" },
-  { "id": 2, "name": "update-agency", "description": "Permission to update agency" },
-  { "id": 3, "name": "delete-agency", "description": "Permission to delete a agency" },
-  { "id": 4, "name": "see-agency", "description": "Permission to see own agencies" },
-  { "id": 5, "name": "see-agencies", "description": "Permission to see all agencies" },
-  { "id": 6, "name": "see-panel-agencies", "description": "Permission to see panel agencies" },
-  { "id": 7, "name": "create-users-agencies", "description": "Permission to create users for agencies" },
+  { "id": 1, "name": "create-organization", "description": "Permission to create a new organization" },
+  { "id": 2, "name": "update-organization", "description": "Permission to update organization" },
+  { "id": 3, "name": "delete-organization", "description": "Permission to delete a organization" },
+  { "id": 4, "name": "see-organization", "description": "Permission to see own organizations" },
+  { "id": 5, "name": "see-organizations", "description": "Permission to see all organizations" },
+  { "id": 6, "name": "see-panel-organizations", "description": "Permission to see panel organizations" },
+  { "id": 7, "name": "create-users-organizations", "description": "Permission to create users for organizations" },
 
   { "id": 10, "name": "create-tenant", "description": "Permission to create a new tenant" },
   { "id": 11, "name": "update-tenant", "description": "Permission to update a tenant" },

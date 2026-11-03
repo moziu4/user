@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: user-service internal API
+  version: 0.1.0
+  description: Contrato resumido de las rutas HTTP implementadas.
+servers:
+  - url: http://localhost:2030
+paths:
+  /internal/users/{user_id}:
+    get:
+      summary: Perfil básico
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses: { '200': { description: Usuario }, '400': { description: ID inválido }, '404': { description: No encontrado } }
+  /internal/users/{user_id}/context:
+    get:
+      summary: Contexto mínimo del usuario
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      responses: { '200': { description: UserContextDTO }, '404': { description: No encontrado } }
+  /internal/users/{user_id}/facts:
+    get:
+      summary: Lista de facts
+      parameters:
+        - { $ref: '#/components/parameters/UserId' }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUPERSEDED, CONFLICTING, REVOKED] } }
+      responses: { '200': { description: Lista de UserFact } }
+    post:
+      summary: Crea un fact
+      parameters: [{ $ref: '#/components/parameters/UserId' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateFactDTO' } } } }
+      responses: { '201': { description: Fact creado } }
+  /internal/users/{user_id}/facts/{fact_type}:
+    get:
+      summary: Historial por tipo
+      parameters: [{ $ref: '#/components/parameters/UserId' }, { name: fact_type, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: Lista de facts } }
+  /internal/users/facts/{fact_id}/status:
+    put:
+      summary: Cambia el estado de un fact
+      parameters: [{ $ref: '#/components/parameters/FactId' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string } } } } } }
+      responses: { '200': { description: Fact actualizado } }
+  /internal/users/facts/{fact_id}/revoke:
+    post:
+      summary: Revoca un fact
+      parameters: [{ $ref: '#/components/parameters/FactId' }]
+      responses: { '200': { description: Fact revocado } }
+components:
+  parameters:
+    UserId: { name: user_id, in: path, required: true, schema: { type: string, description: ObjectId } }
+    FactId: { name: fact_id, in: path, required: true, schema: { type: string, description: ObjectId } }
+  schemas:
+    CreateFactDTO:
+      type: object
+      required: [user_id, fact_type, value, source_service]
+      properties:
+        user_id: { type: string }
+        fact_type: { type: string }
+        value: {}
+        status: { type: string, default: ACTIVE }
+        verification: { type: string, default: UNVERIFIED }
+        source_service: { type: string }
+        source_tenant_id: { type: string, nullable: true }
+        source_case_id: { type: string, nullable: true }
+        evidence_reference: { type: string, nullable: true }
+        valid_from: { type: string, format: date-time, nullable: true }
+        valid_until: { type: string, format: date-time, nullable: true }

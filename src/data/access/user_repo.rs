@@ -224,9 +224,9 @@ impl MongoUserRepo
         Ok(())
     }
 
-    pub async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: OrganizationID) -> Result<(), UserError> {
-        let filter = doc! { "user_id": ObjectId::from(user_id), "agencies.agency_id": ObjectId::from(agency_id) };
-        let update = doc! { "$set": { "agencies.$.status": "Inactive" } };
+    pub async fn deactivate_organization_membership(&self, user_id: UserID, organization_id: OrganizationID) -> Result<(), UserError> {
+        let filter = doc! { "user_id": ObjectId::from(user_id), "organizations.organization_id": ObjectId::from(organization_id) };
+        let update = doc! { "$set": { "organizations.$.status": "Inactive" } };
         let result = self.memberships_coll.update_one(filter, update).await?;
         if result.matched_count == 0 {
             return Err(UserError::UserNotFound);
@@ -348,8 +348,8 @@ impl UserRepo for MongoUserRepo
     async fn deactivate_tenant_membership(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError> {
         self.deactivate_tenant_membership(user_id, tenant_id).await
     }
-    async fn deactivate_agency_membership(&self, user_id: UserID, agency_id: OrganizationID) -> Result<(), UserError> {
-        self.deactivate_agency_membership(user_id, agency_id).await
+    async fn deactivate_organization_membership(&self, user_id: UserID, organization_id: OrganizationID) -> Result<(), UserError> {
+        self.deactivate_organization_membership(user_id, organization_id).await
     }
     async fn anonymize_user_in_tenant(&self, user_id: UserID, tenant_id: TenantID) -> Result<(), UserError> {
         self.anonymize_user_in_tenant(user_id, tenant_id).await
