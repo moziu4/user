@@ -5,6 +5,7 @@ use perms::UserID;
 use serde::Deserialize;
 use mongodb::bson::oid::ObjectId;
 use crate::context::Context;
+use crate::auth_context::VerifiedContext;
 use crate::core::domain::fact::{
     fact_error::FactError,
     fact_type::{CreateFactDTO, FactStatus, FactType, UpdateFactStatusDTO},
@@ -39,6 +40,7 @@ fn parse_user_id(user_id_str: &str) -> Result<UserID, HttpResponse> {
 async fn get_user_profile(
     path: web::Path<String>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let user_id_str = path.into_inner();
     let user_id = match parse_user_id(&user_id_str) {
@@ -55,6 +57,7 @@ async fn get_user_profile(
 async fn get_user_context(
     path: web::Path<String>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let user_id_str = path.into_inner();
     let user_id = match parse_user_id(&user_id_str) {
@@ -75,6 +78,7 @@ async fn get_user_facts(
     path: web::Path<String>,
     query: web::Query<FactQueryFilter>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let user_id_str = path.into_inner();
     let user_id = match parse_user_id(&user_id_str) {
@@ -103,6 +107,7 @@ async fn get_user_facts(
 async fn get_user_facts_by_type(
     path: web::Path<(String, String)>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let (user_id_str, fact_type_str) = path.into_inner();
     let user_id = match parse_user_id(&user_id_str) {
@@ -123,6 +128,7 @@ async fn create_user_fact(
     path: web::Path<String>,
     payload: web::Json<CreateFactDTO>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let user_id_str = path.into_inner();
     let user_id = match parse_user_id(&user_id_str) {
@@ -145,6 +151,7 @@ async fn update_fact_status(
     path: web::Path<String>,
     payload: web::Json<UpdateFactStatusDTO>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let fact_id_str = path.into_inner();
     let fact_id = match FactID::parse_str(&fact_id_str) {
@@ -164,6 +171,7 @@ async fn update_fact_status(
 async fn revoke_fact(
     path: web::Path<String>,
     context: web::Data<Arc<Context>>,
+    _verified: VerifiedContext,
 ) -> impl Responder {
     let fact_id_str = path.into_inner();
     let fact_id = match FactID::parse_str(&fact_id_str) {

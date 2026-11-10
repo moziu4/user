@@ -4,6 +4,7 @@ pub mod db;
 pub mod handlers;
 
 pub mod context;
+pub mod auth_context;
 
 pub mod utils;
 pub mod error;
