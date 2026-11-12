@@ -6,6 +6,7 @@ use crate::utils::domains_ids::{TenantID, OrganizationID};
 use perms::{AuthID, UserID};
 use serde::{Deserialize, Serialize};
 use crate::core::domain::auth::auth_error::AuthError;
+use crate::core::domain::membership::{MembershipStatus, MembershipTarget};
 use crate::data::access::auth_repo::MongoAuthRepo;
 use crate::data::access::user_repo::MongoUserRepo;
 
@@ -101,23 +102,39 @@ impl<'a>AuthEntity<'a>
             return Ok(auth); 
         }
 
-        // Si no es SuperAdmin, buscamos la membresía para obtener el rol contextual
+        if tenant_id.is_some() && organization_id.is_some() {
+            return Err(AuthError::Unauthorized);
+        }
+
+        // Un usuario normal debe iniciar sesión dentro de un ámbito autorizado.
+        // No se permite continuar con su rol global si falta la membership.
+        if tenant_id.is_none() && organization_id.is_none() {
+            return Err(AuthError::Unauthorized);
+        }
+
+        // Si no es SuperAdmin, buscamos una membership activa para obtener el rol contextual.
         let memberships = user_repo.fetch_memberships_by_user(self.props.user_id.clone())
             .map_err(|_| AuthError::MembershipNotFound).await?;
 
         let contextual_role_id = if let Some(t_id) = tenant_id {
             memberships.iter()
-                .find(|m| matches!(&m.target, crate::core::domain::membership::MembershipTarget::Tenant(id) if *id == t_id))
+                .find(|m| {
+                    m.status == MembershipStatus::Active
+                        && matches!(&m.target, MembershipTarget::Tenant(id) if *id == t_id)
+                })
                 .map(|m| m.role_id)
         } else if let Some(organization_id) = organization_id {
             memberships.iter()
-                .find(|m| matches!(&m.target, crate::core::domain::membership::MembershipTarget::Organization(id) if *id == organization_id))
+                .find(|m| {
+                    m.status == MembershipStatus::Active
+                        && matches!(&m.target, MembershipTarget::Organization(id) if *id == organization_id)
+                })
                 .map(|m| m.role_id)
         } else {
             None
         };
 
-        let final_role_id = contextual_role_id.unwrap_or(self.props.role_id);
+        let final_role_id = contextual_role_id.ok_or(AuthError::Unauthorized)?;
         
         // Cargar permisos base del rol (Strings)
         let base_perms = perm_repo.charge_permissions(final_role_id, context).await
@@ -160,4 +177,3 @@ impl From<Auth> for perms::token::Auth {
         }
     }
 }
-

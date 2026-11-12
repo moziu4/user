@@ -50,8 +50,9 @@ impl<'a> AuthOps<'a>
             return Err(AuthError::IncorrectPassword);
         }
         
-        let auth_entity = AuthEntity::new(auth.clone(), self.repo).await;
-        let auth_perms = auth_entity.login_contextual(self.user_repo, self.perm_repo, auth_login.tenant_id, auth_login.organization_id, self.context).await?;
+        // El login inicial solo autentica credenciales. La selección de organización
+        // y tenant se resolverá en un paso posterior, con un token contextual nuevo.
+        let auth_perms: perms::Auth = auth.into();
 
         let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
         let token = Token::new(secret, auth_perms).map_err(|_| AuthError::PermLibError)?;

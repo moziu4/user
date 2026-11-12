@@ -1,7 +1,5 @@
-use std::env;
-use actix_web::HttpRequest;
 use bcrypt::{hash};
-use perms::{has_permission, UserID};
+use perms::{RequestContext, UserID};
 use uuid::Uuid;
 use crate::{
     core::domain::{
@@ -65,9 +63,8 @@ impl<'a> UserOps<'a>
         requester_role < target_role
     }
 
-    pub async fn create_user(&self, new_user: NewUser, req: HttpRequest) -> Result<User, UserError>
+    pub async fn create_user(&self, new_user: NewUser, request_context: RequestContext) -> Result<User, UserError>
     {
-        let _secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
 
         // 1. Determine target role
         let membership = new_user.membership
@@ -80,27 +77,24 @@ impl<'a> UserOps<'a>
         let target_role = Role::from_id(target_role_id)
             .unwrap_or(Role::Client);
 
-        // 2. Extract requester info (permissions and role)
-        // Manual extraction for now as we don't have the function in perms
-        let _auth_header = req.headers().get("Authorization")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|h| h.strip_prefix("Bearer "))
-            .ok_or(UserError::Unauthorized)?;
-
-        // This is a placeholder. In a real scenario, you'd verify the JWT here.
-        // For now, we'll assume the token is valid and deserialize it.
-        // Alternatively, use perms::decode if available.
-        let requester_claims: crate::core::domain::auth::auth_type::Claims = serde_json::from_str("{}") // Placeholder
-             .map_err(|_| UserError::Unauthorized)?;
-
-        let requester_perms = requester_claims.permissions;
-        let requester_role_id = requester_claims.role_id;
-
-        // 3. Check basic permission to create users based on target role
-        let has_global_create = requester_perms.iter().any(|p| p == CREATE_USER_GLOBAL);
-        let has_organization_create = requester_perms.iter().any(|p| p == CREATE_USER_ORGANIZATION);
-        let has_tenant_create = requester_perms.iter().any(|p| p == CREATE_USER_TENANT);
-        let has_client_create = requester_perms.iter().any(|p| p == CREATE_USER_CLIENT);
+        // 2. Authorize against the already verified signed context. Never decode
+        // the bearer token again in the application layer.
+        let has_global_create = request_context.authorize(
+            CREATE_USER_GLOBAL,
+            &request_context.scope,
+        ).is_ok();
+        let has_organization_create = request_context.authorize(
+            CREATE_USER_ORGANIZATION,
+            &request_context.scope,
+        ).is_ok();
+        let has_tenant_create = request_context.authorize(
+            CREATE_USER_TENANT,
+            &request_context.scope,
+        ).is_ok();
+        let has_client_create = request_context.authorize(
+            CREATE_USER_CLIENT,
+            &request_context.scope,
+        ).is_ok();
 
         let is_target_organization = matches!(target_role, Role::AgencyOwner | Role::AgencyAdmin | Role::AgencyMember);
         let is_target_tenant = matches!(target_role, Role::TenantAdmin | Role::Editor);
@@ -123,12 +117,7 @@ impl<'a> UserOps<'a>
             return Err(UserError::NotHasPermission);
         }
 
-        // 4. Enforce strict role hierarchy
-        if !Self::can_create_role(requester_role_id, target_role_id) {
-            return Err(UserError::InsufficientPrivileges);
-        }
-
-        // 5. Determine Registration Policy from Tenant (if tenant_id is provided)
+        // 3. Determine Registration Policy from Tenant (if tenant_id is provided)
         let tenant_info = if let Some(tenant_id) = &membership.tenant_id {
             self.context.get_tenant(&tenant_id.to_string()).await.ok()
         } else {
@@ -149,7 +138,7 @@ impl<'a> UserOps<'a>
             (Status::Active, MembershipStatus::Active)
         };
 
-        // 6. Basic user validation
+        // 4. Basic user validation
         if self.repo.fetch_by_email(new_user.email.clone()).await.is_ok()
         {
             return Err(UserError::EmailIsUsed)
@@ -169,7 +158,7 @@ impl<'a> UserOps<'a>
 
         let password = hash(new_user.password, 10).map_err(|_err| UserError::HashPasswordError)?;
 
-        // 7. Charge permissions for the target role
+        // 5. Charge permissions for the target role
         let perms = self.perm_repo
             .charge_permissions(target_role_id, self.context)
             .await
@@ -192,7 +181,7 @@ impl<'a> UserOps<'a>
             .await
             .map_err(|_| UserError::AuthError)?;
 
-        // 8. Create Membership if organization_id or tenant_id is provided
+        // 6. Create Membership if organization_id or tenant_id is provided
         if membership.organization_id.is_some() || membership.tenant_id.is_some() {
             if let Some(organization_id) = &membership.organization_id {
                 let membership_entity = Membership::new_organization_with_status(
@@ -215,7 +204,7 @@ impl<'a> UserOps<'a>
             }
         }
 
-        // 9. Publish NATS events
+        // 7. Publish NATS events
         if let Some(nats_service) = &self.context.nats_service {
             let token = Uuid::new_v4().to_string();
 
@@ -270,11 +259,9 @@ impl<'a> UserOps<'a>
         Ok(user)
     }
 
-    pub async fn load_users(&self, req: HttpRequest) -> Result<Vec<User>, UserError>
+    pub async fn load_users(&self, request_context: RequestContext) -> Result<Vec<User>, UserError>
     {
-        let secret = env::var("SECRET_KEY").expect("SECRET_KEY not found");
-        if !has_permission(secret, req, READ_USER_GLOBAL).await
-        {
+        if request_context.authorize(READ_USER_GLOBAL, &request_context.scope).is_err() {
             return Err(UserError::NotHasPermission);
         }
 

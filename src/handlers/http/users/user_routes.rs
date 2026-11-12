@@ -3,13 +3,13 @@ use std::sync::Arc;
 use actix_web::{
     web,
     web::{Json},
-    HttpRequest,
     HttpResponse,
     Responder,
 };
 
 
 use crate::{
+    auth_context::VerifiedContext,
     context::Context,
     core::{domain::user::user_type::{NewUser, IdentityDocumentType}, operation::user_ops::UserOps },
 };
@@ -24,7 +24,7 @@ pub fn config(cfg: &mut web::ServiceConfig)
     ));
 }
 
-async fn new_user(req: HttpRequest, context: web::Data<Arc<Context>>, payload: Json<NewUser>) -> impl Responder
+async fn new_user(auth: VerifiedContext, context: web::Data<Arc<Context>>, payload: Json<NewUser>) -> impl Responder
 {
     let user_repo =  context.get_ref().get_user_repo();
     let auth_repo=   context.get_ref().get_auth_repo();
@@ -32,14 +32,14 @@ async fn new_user(req: HttpRequest, context: web::Data<Arc<Context>>, payload: J
     
     let user_ops = UserOps::new(&user_repo, perm_repo.as_ref(), auth_repo.as_ref(), &context).await;
 
-    match user_ops.create_user(payload.into_inner(), req).await
+    match user_ops.create_user(payload.into_inner(), auth.0).await
     {
         Ok(user) => HttpResponse::Ok().json(user),
         Err(err) => HttpResponse::InternalServerError().json(err.to_string()),
     }
 }
 
-async fn load_users(req: HttpRequest, context: web::Data<Arc<Context>>) -> impl Responder
+async fn load_users(auth: VerifiedContext, context: web::Data<Arc<Context>>) -> impl Responder
 {
     let user_repo =  context.get_ref().get_user_repo();
     let auth_repo=   context.get_ref().get_auth_repo();
@@ -47,7 +47,7 @@ async fn load_users(req: HttpRequest, context: web::Data<Arc<Context>>) -> impl 
 
     let user_ops = UserOps::new(&user_repo, perm_repo.as_ref(), auth_repo.as_ref(), &context).await;
 
-    match user_ops.load_users(req).await
+    match user_ops.load_users(auth.0).await
     {
         Ok(user) => HttpResponse::Ok().json(user),
         Err(err) => HttpResponse::InternalServerError().json(err.to_string()),

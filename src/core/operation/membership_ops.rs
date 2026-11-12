@@ -7,6 +7,8 @@ use crate::core::domain::membership::{
 };
 use crate::data::access::membership_repo::MongoMembershipRepo;
 use crate::context::Context;
+use crate::core::domain::membership::MembershipTarget;
+use crate::utils::domains_ids::OrganizationID;
 
 pub struct MembershipOps<'a> {
     repo: &'a MongoMembershipRepo,
@@ -79,6 +81,32 @@ impl<'a> MembershipOps<'a> {
 
     pub async fn get_membership_for_user(&self, user_id: &str) -> MembershipResult<Vec<Membership>> {
         self.repo.get_membership_for_user(self.context, user_id).await
+    }
+
+    pub async fn get_active_memberships_for_user(&self, user_id: &str) -> MembershipResult<Vec<Membership>> {
+        self.repo.get_active_memberships_for_user(self.context, user_id).await
+    }
+
+    pub async fn get_active_organization_memberships(&self, user_id: &str) -> MembershipResult<Vec<Membership>> {
+        Ok(self.get_active_memberships_for_user(user_id).await?
+            .into_iter()
+            .filter(|membership| matches!(membership.target, MembershipTarget::Organization(_)))
+            .collect())
+    }
+
+    pub async fn get_active_tenant_memberships(&self, user_id: &str, organization_id: OrganizationID) -> MembershipResult<Vec<Membership>> {
+        let memberships = self.get_active_memberships_for_user(user_id).await?;
+        let mut result = Vec::new();
+        for membership in memberships {
+            if let MembershipTarget::Tenant(tenant_id) = membership.target.clone() {
+                let tenant = self.context.get_tenant(&tenant_id.to_string()).await
+                    .map_err(|_| MembershipError::MembershipNotFound)?;
+                if tenant.organization_id == Some(organization_id.clone()) && matches!(tenant.state, crate::data::proxy::tenant::TenantState::Active) {
+                    result.push(membership);
+                }
+            }
+        }
+        Ok(result)
     }
 
     pub async fn get_membership(&self, membership_id: &str) -> MembershipResult<Membership> {

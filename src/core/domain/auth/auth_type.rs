@@ -1,4 +1,3 @@
-use std::{fmt, str::FromStr};
 pub use perms::Role;
 use serde::{Deserialize, Serialize};
 use crate::utils::domains_ids::{TenantID, OrganizationID};
@@ -8,8 +7,13 @@ pub struct AuthLogin
 {
     pub username:  String,
     pub password:  String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ContextSelection
+{
+    pub organization_id: OrganizationID,
     pub tenant_id: Option<TenantID>,
-    pub organization_id: Option<OrganizationID>,
 }
 
 pub use perms::Claims;

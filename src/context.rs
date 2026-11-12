@@ -6,6 +6,7 @@ use mongodb::bson::Document;
 use crate::data::access::{
     auth_repo::MongoAuthRepo,
     fact_repo::MongoFactRepo,
+    membership_repo::MongoMembershipRepo,
     perms_repo::MongoPermRepo,
     user_repo::MongoUserRepo,
 };
@@ -20,6 +21,7 @@ pub struct Context
     pub auth_repo:  Arc<MongoAuthRepo>,
     pub perm_repo: Arc<MongoPermRepo>,
     pub fact_repo: Arc<MongoFactRepo>,
+    pub membership_repo: Arc<MongoMembershipRepo>,
     pub nats_service: Option<Arc<NatsService>>,
     pub http_client: reqwest::Client,
 }
@@ -46,13 +48,14 @@ impl Context
         Self { client:     arc_client.clone(),
                   user_repo:  Arc::new(MongoUserRepo::new(
                       user_collection,
-                      membership_collection,
+                      membership_collection.clone(),
                       phone_collection,
                       address_collection
                   )),
                   auth_repo:  Arc::new(MongoAuthRepo::new(auth_collection)),
                   perm_repo: Arc::new(MongoPermRepo::new(perm_collection)),
                   fact_repo: Arc::new(MongoFactRepo::new(fact_collection)),
+                  membership_repo: Arc::new(MongoMembershipRepo::new(membership_collection)),
                   nats_service,
                   http_client,
         }
@@ -80,6 +83,11 @@ impl Context
     pub fn get_fact_repo(&self) -> Arc<MongoFactRepo>
     {
         Arc::clone(&self.fact_repo)
+    }
+
+    pub fn get_membership_repo(&self) -> Arc<MongoMembershipRepo>
+    {
+        Arc::clone(&self.membership_repo)
     }
 
     pub fn get_collection(&self, collection: &str) -> Collection<Document>

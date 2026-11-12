@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use futures_util::TryStreamExt;
 use mongodb::{bson::{doc, oid::ObjectId, Document}, Collection};
 use mongodb::bson::{from_document, to_document};
-use crate::core::domain::membership::{Membership, membership_repo::MembershipRepo, membership_error::{MembershipError, MembershipResult}};
+use crate::core::domain::membership::{Membership, membership_repo::MembershipRepo, membership_error::{MembershipError, MembershipResult}, MembershipStatus};
 use crate::context::Context;
 use crate::utils::domains_ids::{MembershipID, OrganizationID};
 use perms::UserID;
@@ -51,6 +51,11 @@ impl MembershipRepo for MongoMembershipRepo {
             memberships.push(m);
         }
         Ok(memberships)
+    }
+
+    async fn get_active_memberships_for_user(&self, context: &Context, user_id: &str) -> MembershipResult<Vec<Membership>> {
+        let memberships = self.get_membership_for_user(context, user_id).await?;
+        Ok(memberships.into_iter().filter(|membership| membership.status == MembershipStatus::Active).collect())
     }
 
     async fn update_status(&self, context: &Context, membership_id: &str, status: &str) -> MembershipResult<()> {
